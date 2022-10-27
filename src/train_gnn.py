@@ -1,12 +1,16 @@
 import os
+import argparse
 
-import torch.optim
+# import torch.optim
 # os.environ['KMP_DUPLICATE_LIB_OK']='True'
-
+import torch
+from utils.params import Params
 from torch_geometric.datasets import Planetoid
 from torch_geometric.transforms import NormalizeFeatures
 
-from graph_models.GNN import MyGCN
+import GNNs
+from GNNs.GCN import GCN
+from GNNs.GAT import GAT
 
 dataset = Planetoid(root='../data/Planetoid', name='Cora', transform=NormalizeFeatures())
 
@@ -33,15 +37,6 @@ print(f'Has isolated nodes: {graph.has_isolated_nodes()}')
 print(f'Has self-loops: {graph.has_self_loops()}')
 print(f'Is undirected: {graph.is_undirected()}')
 
-# start the model
-
-model = MyGCN(input_dim=graph.num_features,   # 1433
-            hidden_dim=16,
-            output_dim=dataset.num_classes)   # 7
-
-criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(),lr=0.01, weight_decay=5e-4)
-
 def train(epoch_num=100):
     model.train()
     for epoch in range(epoch_num):
@@ -63,6 +58,31 @@ def test_accu(model,graph):
     test_acc = int(test_correct.sum()) / int(graph.test_mask.sum())  # Derive ratio of correct predictions.
     return test_acc
 
-train(20)
-accu = test()
-print(accu)
+if __name__=='__main__':
+
+    # Section 1, load and parse parameters
+    parser = argparse.ArgumentParser(description='running experiments on multimodal mydatasets.')
+    parser.add_argument('-config', action = 'store', dest = 'config_file', help = 'please enter configuration file.',default = 'config/run.ini')
+    args = parser.parse_args()
+    params = Params()
+    params.parse_config(args.config_file)
+    params.config_file = args.config_file
+
+    params.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    print('Using device:', params.device)
+
+    # section 2, mannually add features
+    params.input_dim = graph.num_features
+    params.hidden_dim = 16
+    params.output_dim = dataset.num_classes
+
+    # section 3, model, loss function, and optimizer
+    model = GNNs.setup(params).to(params.device)
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.01, weight_decay=5e-4)
+
+    # section 4, train and evaluate
+    train(30)
+    accu = test_accu(model,graph)
+    print(accu)
+

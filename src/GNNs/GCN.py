@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class GCN(torch.nn.Module):
     def __init__(self, opt):
         super(GCN, self).__init__()
-        self.layer_num = opt.layer_num
+        # self.layer_num = opt.layer_num
         # self.encoder = nn.Linear(opt.input_dim, opt.hidden_dim)
 
         self.conv1 = GCNConv(opt.input_dim, opt.hidden_dim)
