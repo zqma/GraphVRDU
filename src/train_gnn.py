@@ -1,5 +1,8 @@
 import os
 import argparse
+from pydoc import describe
+
+from pandas import describe_option
 
 # import torch.optim
 # os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -9,8 +12,6 @@ from torch_geometric.datasets import Planetoid
 from torch_geometric.transforms import NormalizeFeatures
 
 import GNNs
-from GNNs.GCN import GCN
-from GNNs.GAT import GAT
 
 dataset = Planetoid(root='../data/Planetoid', name='Cora', transform=NormalizeFeatures())
 
@@ -58,12 +59,16 @@ def test_accu(model,graph):
     test_acc = int(test_correct.sum()) / int(graph.test_mask.sum())  # Derive ratio of correct predictions.
     return test_acc
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='run the model')
+    parser.add_argument('--config', dest='config_file', default = 'config/gnn.ini')
+    return parser.parse_args()
+
 if __name__=='__main__':
 
     # Section 1, load and parse parameters
-    parser = argparse.ArgumentParser(description='running experiments on multimodal mydatasets.')
-    parser.add_argument('-config', action = 'store', dest = 'config_file', help = 'please enter configuration file.',default = 'config/run.ini')
-    args = parser.parse_args()
+    args = parse_args()
+    # accomodate all params
     params = Params()
     params.parse_config(args.config_file)
     params.config_file = args.config_file
