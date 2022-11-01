@@ -119,7 +119,7 @@ if __name__=='__main__':
     # section 4, model, loss function, and optimizer
     model = GNNs.setup(params).to(params.device)
     criterion = torch.nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(),lr=0.01, weight_decay=5e-4)
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.01)    # cannot use weight decay!!
 
     # section 5, train and evaluate
     train(model,train_data,100)
