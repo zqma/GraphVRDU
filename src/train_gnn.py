@@ -78,7 +78,6 @@ if __name__=='__main__':
 
     # section 2, mannually add features
     params.input_dim = graph.num_features
-    params.hidden_dim = 16
     params.output_dim = dataset.num_classes
 
     # section 3, model, loss function, and optimizer
@@ -87,7 +86,7 @@ if __name__=='__main__':
     optimizer = torch.optim.Adam(model.parameters(),lr=0.01, weight_decay=5e-4)
 
     # section 4, train and evaluate
-    train(30)
+    train(50)
     accu = test_accu(model,graph)
     print(accu)
 

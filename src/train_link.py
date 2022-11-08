@@ -27,8 +27,7 @@ def train(model,train_data, epoches):
         if val_auc > best_val_auc:
             best_val_auc = val_auc
             final_test_auc = test_auc
-        print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Val: {val_auc:.4f}, '
-            f'Test: {test_auc:.4f}')
+        print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Val: {val_auc:.4f}, Test: {test_auc:.4f}')
 
     print(f'Final Test: {final_test_auc:.4f}')
 
@@ -88,7 +87,7 @@ if __name__=='__main__':
     # accomodate all params
     params = Params()
     params.parse_config(args.config_file)
-    params.config_file = args.config_file
+    # params.config_file = args.config_file
 
     params.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     print('Using device:', params.device)
@@ -107,7 +106,7 @@ if __name__=='__main__':
     print(f'Dataset: {dataset}:')
     print('======================')
     print(f'Number of graphs: {len(dataset)}')
-    print(f'Number of features: {dataset.num_features}')
+    print(f'Number of features: {dataset.num_features}')    # 1433 (so many features)
     print(f'Number of classes: {dataset.num_classes}')
 
     train_data, val_data, test_data = dataset[0] # Get the first graph object.
@@ -122,10 +121,13 @@ if __name__=='__main__':
     optimizer = torch.optim.Adam(model.parameters(),lr=0.01)    # cannot use weight decay!!
 
     # section 5, train and evaluate
-    train(model,train_data,100)
+    epoch = 100
+    train(model,train_data,epoch)
     accu = test(test_data)
     print(accu)
 
     z = model.encode(test_data)
-    predicted = model.decode_all(z)
-    print(predicted)
+    print(z)
+    print(test_data.x.shape)    # 2708 * 1433
+
+
