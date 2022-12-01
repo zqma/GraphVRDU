@@ -6,5 +6,7 @@ data/*
 eval/*
 models/__pycache__/*
 dataload/__pycache__/*
+tmp/*
+src/tmp/*
 
 

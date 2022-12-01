@@ -50,7 +50,9 @@ def train_per_epoch(model,train_data):
         train_data.edge_label.new_zeros(neg_edge_index.size(1))
     ], dim=0)
 
+
     out = model.decode(z, edge_label_index).view(-1)
+    print(edge_label)
     loss = criterion(out, edge_label)
     loss.backward()
     optimizer.step()

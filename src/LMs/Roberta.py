@@ -5,7 +5,7 @@ from models.base_model import BaseModel
 
 from transformers import RobertaModel, RobertaConfig
 
-class RobertaClassifier(BaseModel):
+class RobertaClassifier(nn.Module):
     def __init__(self, opt, freeze_bert=False):
         super(RobertaClassifier, self).__init__()
         self.opt = opt
