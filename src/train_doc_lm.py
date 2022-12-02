@@ -13,7 +13,7 @@ import LMs
 # from torch_geometric.transforms import NormalizeFeatures
 import dataload
 from LMs import trainer
-from utils import util_trainer 
+# from utils import util_trainer 
 import LMs
 
 def parse_args(config_path):
@@ -36,7 +36,7 @@ if __name__=='__main__':
     mydata = dataload.setup(params)
 
     # section 3, objective function and output dim
-    params.criterion = util_trainer.get_criterion(params)
+    # params.criterion = util_trainer.get_criterion(params)
 
     # section 4, model, loss function, and optimizer
     if bool(params.continue_train):

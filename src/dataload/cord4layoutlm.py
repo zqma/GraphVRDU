@@ -32,10 +32,9 @@ class CORD:
 
         # prepare for getting trainable data
         layoutlm_dir = '/home/ubuntu/python_projects/models/layoutlmv3.base'
-        opt.processor = AutoProcessor.from_pretrained(layoutlm_dir, apply_ocr=False)    # a wrap of featureExtract and tokenizer
-
+        opt.processor = AutoProcessor.from_pretrained(layoutlm_dir, apply_ocr=False)    # wrap of featureExtract & tokenizer
         opt.id2label, opt.label2id, opt.num_labels = self.get_label_map(self.dataset)
-        self.train_dataset, self.test_dataset = self.get_data('train'), self.get_data('test')
+        self.train_dataset, self.test_dataset = self.get_data('validation'), self.get_data('test')
 
         #
         # print(self.test_dataset)
@@ -48,7 +47,7 @@ class CORD:
         boxes = doc[self.boxes_col_name]
         word_labels = doc[self.label_col_name]
         encoding = self.opt.processor(images, words, boxes=boxes, word_labels=word_labels,
-                            truncation=True, padding="max_length", return_tensors="pt") # must put return tensor
+                            truncation=True, padding="max_length") # must put return tensor
         return encoding
 
     def get_data(self,split='train',shuffle=True):
@@ -112,3 +111,4 @@ if __name__ == '__main__':
         num_rows: 100
     })
     '''
+

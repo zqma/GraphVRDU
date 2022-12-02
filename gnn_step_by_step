@@ -1,0 +1,25 @@
+Document Classification
+The project is available in https://github.com/KangGu96/LayoutGNN
+1.	Data preparation: the original RVL dataset is in .tif format. For convenience, I converted it to .jpg format. This process is in RVL/generate_data.py
+
+2.	 After saving the RVL dataset in .jpg  format.  I used Layout Parser library to perform object detection and OCR.  The resulting bounding boxes and text were stored in “RVL/annotations.json‘’ . The details are in RVL/parse.py.
+
+3.	Then I used BERT to generate the embeddings for each segment of text.  Besides, I also used ViT to generate the image embeddings of each segment. The resulting sample had four fields: text_emb, img_emb, coordinates and label. They were stored in hdf5 dataset. The details are in RVL/generate_embedding.py
+
+4.	The library for GNN is Spektral.  It requires we create a dataset inherited from “spektral.data.Dataset”.  “read()” function is how the class gets called and returns a sample.  In addition,  “convert()” function takes care of transforming the embeddings into a graph object (X, A, E).  It is important because GNN doesn’t process input in any other format.  The details are in RVL/graph_dataset.py
+
+5.	Finally, we are able to build a GNN model and train it to classify.  The construction of GNN is the same as any neural network. Please refer to RVL/gcn.py.
+
+Visual Document Understanding
+1.	The DOCVQA dataset consists of three parts: document images, ocr results for each image and question answering json files. To prepare it for training, I process the dataset and save it into one json file. Each sample has the following fields: context, word_bbox (of each word) , seg_bbox (of each segment), segments (context split by segment),  sub_graph_loc (the segment id of each word  in the context), gt_answer, found_answer, question and ans_loc. 
+Since the locations of the answers were not provided, I employed regular expression to find the answer in the context.  Details are in DOCVQA/load_ocr.py
+
+2.	Similarly, The text needs to be tokenized and converted to embeddings too.  However, we will need to handle the sub token alignment problem. Since a word can be split into multiple sub tokens, the location of the answer will change. Besides the answer, features like sub_graph_loc and word_bbox  also need to be aligned with sub tokens.  The alignment function is in DOCVQA/format_input.py 
+
+3.	The results of BERTQA was achieved after performing the mentioned alignment process.
+BERTQA followed the official implementation. However, GNN needs extra efforts on preparing the input. Each segment needs to be recorded so that we know the position of each subgraph.
+4.	In classification task, our graph was actually a simplified version with each segment as node. However, VQA requires more fine-grained representation, thus the graph needs to be extended to token level: now each segment is represented by a subgraph with each token as node. Each subgraph is connected with other subgraphs via their last tokens. Therefore the whole graph is not fully connected.  The code is in DOCVQA/graph_dataset.py
+Suggestions on Next Steps
+
+1.	I have completed the graph QA dataset. The next step is to try it out.
+2.	Unlike the classification, QA may requires customized loss function etc.

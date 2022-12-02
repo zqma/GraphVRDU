@@ -8,10 +8,10 @@ import numpy as np
 import os
 import pickle
 
-def temp_a_dir(opt):
-    # Temp file for storing the best model
-    temp_file_name = str(int(np.random.rand() * int(time.time())))
-    opt.best_model_file = os.path.join('tmp', temp_file_name)
+from datasets import load_metric
+metric = load_metric("seqeval")
+
+
 
 
 def train(opt, model, mydata):
@@ -39,16 +39,15 @@ def train(opt, model, mydata):
     
         # test
         model.eval()
-        outputs,tgts = predict_all_batches(opt, model,loader_test)    
-        # res_dict = evaluate(outputs.logits,tgts)
-        res_dict = compute_metrics([outputs.logits,tgts])
+        preds,tgts = predict_all_batches(opt, model,loader_test)    
+        # res_dict = evaluate(preds,tgts)
+        res_dict = compute_metrics([preds,tgts])
         print(res_dict)
 
         if res_dict['f1']>best_f1:
             save_model(opt, model,res_dict)
             best_f1 = res_dict['f1']
-            print('The best model saved with f1:', best_f1)
-        
+            print('The best model saved with f1:', best_f1)        
 
 
 # for backpropagation use, so define the input variables
@@ -67,50 +66,58 @@ def predict_one_batch(opt, model, batch):
             pixel_values = pixel_values, 
             labels = labels
         )
-    
     return outputs
 
 # for evaluation use (all batche inference)
 def predict_all_batches(opt,model,dataloader):
-    outputs, targets = [],[]
-    for _ii, data in enumerate(dataloader, start=0):
-        output = predict_one_batch(model, data)
-        target = data['labels'].to(opt.device)
+    with torch.no_grad():
+        outputs, targets = [],[]
+        for _ii, data in enumerate(dataloader, start=0):
+            output = predict_one_batch(opt,model, data)
+            target = data['labels'].to(opt.device)
 
-        outputs.append(output)
-        targets.append(target)
-    outputs = torch.cat(outputs)
-    targets = torch.cat(targets)
-    return outputs,targets
+            outputs.append(output.logits)   # logits
+            targets.append(target)
+        outputs = torch.cat(outputs)
+        targets = torch.cat(targets)
+        return outputs,targets
 
 
-def evaluate(outputs, targets, print_confusion=False):
+# preds is the logits (label distribution);
+def evaluate(preds, targets, print_confusion=False):
 
     # n_total,num_classes = outputs.shape
     # 2) move to cpu to convert to numpy
-    output = outputs.cpu().numpy()
+    preds = preds.cpu().numpy()
+    print(preds)
+    preds = np.argmax(preds, axis=-1)
+    print(preds)
     target = targets.cpu().numpy()
 
+    print('tgt', target)
+
     # confusion = confusion_matrix(output, target)
-    f1 = f1_score(target, output, average='weighted')
-    precision,recall,fscore,support = precision_recall_fscore_support(target, output, average='weighted')
-    acc = accuracy_score(target, output)
-    performance_dict = {'num':len(output),'acc': round(acc,3), 'f1': round(f1,3), 'precision':round(precision,3),'recall':round(recall,3)}
-    if print_confusion: print(classification_report(target, output))
+    f1 = f1_score(target, preds, average='weighted')
+    precision,recall,fscore,support = precision_recall_fscore_support(target, preds, average='weighted')
+    acc = accuracy_score(target, preds)
+    performance_dict = {'num':len(preds),'acc': round(acc,3), 'f1': round(f1,3), 'precision':round(precision,3),'recall':round(recall,3)}
+    if print_confusion: print(classification_report(target, preds))
 
     return performance_dict
 
-def compute_metrics(p,return_entity_level_metrics=False):
+def compute_metrics(opt, p,return_entity_level_metrics=False):
     predictions, labels = p
+    print(predictions[:5])
+    print(labels[:5])
     predictions = np.argmax(predictions, axis=-1)   # -1 or 2
 
     # Remove ignored index (special tokens)
     true_predictions = [
-        [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
+        [opt.label_list[p] for (p, l) in zip(prediction, label) if l != -100]
         for prediction, label in zip(predictions, labels)
     ]
     true_labels = [
-        [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
+        [opt.label_list[l] for (p, l) in zip(prediction, label) if l != -100]
         for prediction, label in zip(predictions, labels)
     ]
 
@@ -134,12 +141,12 @@ def compute_metrics(p,return_entity_level_metrics=False):
         }
 
 def create_save_dir(params):
-    if not os.path.exists('tmp'):
-        os.mkdir('tmp')
+    if not os.path.exists('tmp_dir'):
+        os.mkdir('tmp_dir')
 
      # Create model dir
     params.dir_name = '_'.join([params.network_type,params.dataset_name,str(round(time.time()))[-6:]])
-    dir_path = os.path.join('tmp', params.dir_name)
+    dir_path = os.path.join('tmp_dir', params.dir_name)
     if not os.path.exists(dir_path):
         os.mkdir(dir_path)  
 
