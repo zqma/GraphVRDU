@@ -35,14 +35,15 @@ if __name__=='__main__':
     # section 2, load data; prepare output_dim/num_labels, id2label, label2id for section3; 
     mydata = dataload.setup(params)
 
-    # section 3, objective function and output dim
+    # section 3, objective function and output dim/ move to trainer
     # params.criterion = util_trainer.get_criterion(params)
 
     # section 4, model, loss function, and optimizer
     if bool(params.continue_train):
+        print('continue based on:', params.continue_with_model)
         model_params = pickle.load(open(os.path.join(params.continue_with_model,'config.pkl'),'rb'))
         model = LMs.setup(model_params).to(params.device)
-        model.load_state_dict(torch.load(os.path.join(params.dir_name,'model')))
+        model.load_state_dict(torch.load(os.path.join(params.continue_with_model,'model')))
     else:
         model = LMs.setup(params).to(params.device)
 

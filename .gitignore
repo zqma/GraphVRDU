@@ -6,7 +6,8 @@ data/*
 eval/*
 models/__pycache__/*
 dataload/__pycache__/*
-tmp/*
-src/tmp/*
+tmp_dir/*
+src/tmp_dir/*
+
 
 

@@ -31,9 +31,9 @@ class CORD:
         self.dataset = load_dataset("nielsr/cord-layoutlmv3")
 
         # prepare for getting trainable data
-        layoutlm_dir = '/home/ubuntu/python_projects/models/layoutlmv3.base'
-        opt.processor = AutoProcessor.from_pretrained(layoutlm_dir, apply_ocr=False)    # wrap of featureExtract & tokenizer
-        opt.id2label, opt.label2id, opt.num_labels = self.get_label_map(self.dataset)
+        self.processor = AutoProcessor.from_pretrained(opt.layoutlm_dir, apply_ocr=False)    # wrap of featureExtract & tokenizer
+        opt.id2label, opt.label2id, opt.label_list = self.get_label_map(self.dataset)
+        opt.num_labels = len(opt.label_list)
         self.train_dataset, self.test_dataset = self.get_data('validation'), self.get_data('test')
 
         #
@@ -46,7 +46,7 @@ class CORD:
         words = doc[self.text_col_name]
         boxes = doc[self.boxes_col_name]
         word_labels = doc[self.label_col_name]
-        encoding = self.opt.processor(images, words, boxes=boxes, word_labels=word_labels,
+        encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
                             truncation=True, padding="max_length") # must put return tensor
         return encoding
 
@@ -91,8 +91,7 @@ class CORD:
             label_list = self.get_label_list(dataset[split][self.label_col_name])
             id2label = {k: v for k,v in enumerate(label_list)}
             label2id = {v: k for k,v in enumerate(label_list)}
-        num_labels = len(label_list)
-        return id2label, label2id, num_labels
+        return id2label, label2id, label_list
     
 
 

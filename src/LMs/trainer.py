@@ -12,8 +12,6 @@ from datasets import load_metric
 metric = load_metric("seqeval")
 
 
-
-
 def train(opt, model, mydata):
     # 1 data loader
     loader_train = DataLoader(mydata.train_dataset, batch_size=opt.batch_size,shuffle=True)
@@ -22,26 +20,31 @@ def train(opt, model, mydata):
     print(loader_train, loader_test)
 
     # 2 optimizer
-    optimizer = torch.optim.AdamW(model.parameters(),lr=opt.lr, weight_decay=5e-4)
+    optimizer = torch.optim.AdamW(model.parameters(),lr=opt.lr, betas=(0.9,0.999),eps=1e-08)
     # 3 training
     best_f1 = 0.0
-    create_save_dir(opt)    # prepare dir for saving best models
+    opt.dir_path = create_save_dir(opt)    # prepare dir for saving best models
+    
+    
     for epoch in range(opt.epochs):    
         # train mode
         model.train()
+        train_loss = 0.0
         for batch in tqdm(loader_train, desc = 'Training'):
             optimizer.zero_grad()  # Clear gradients.
-            outputs = predict_one_batch(opt,model,batch)
+            outputs = predict_one_batch(opt,model,batch,eval=False)
             loss = outputs.loss
             loss.backward()
             optimizer.step()  # Update parameters based on gradients.
-        print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}')
-    
+            train_loss += loss.item()
+        
         # test
         model.eval()
-        preds,tgts = predict_all_batches(opt, model,loader_test)    
+        preds,tgts, avg_loss = predict_all_batches(opt, model,loader_test)
+        print(f'Eval Loss: {avg_loss:.4f}')
+
         # res_dict = evaluate(preds,tgts)
-        res_dict = compute_metrics([preds,tgts])
+        res_dict = compute_metrics(opt, [preds,tgts])
         print(res_dict)
 
         if res_dict['f1']>best_f1:
@@ -51,50 +54,67 @@ def train(opt, model, mydata):
 
 
 # for backpropagation use, so define the input variables
-def predict_one_batch(opt, model, batch):
+def predict_one_batch(opt, model, batch, eval=False):
     if opt.task_type == 'token-classifier':
         input_ids = batch['input_ids'].to(opt.device)
         attention_mask = batch['attention_mask'].to(opt.device)
         bbox = batch['bbox'].to(opt.device)
         labels = batch['labels'].to(opt.device)
         pixel_values = batch['pixel_values'].to(opt.device)
+        if eval:
+            with torch.no_grad():
+                outputs = model(
+                    input_ids = input_ids, bbox = bbox, attention_mask = attention_mask, 
+                    pixel_values = pixel_values, labels = labels)  
+        else:
+            outputs = model(
+                input_ids = input_ids, bbox = bbox, attention_mask = attention_mask, 
+                pixel_values = pixel_values, labels = labels)
+
+    elif opt.task_type == 'docvqa':
+        input_ids = batch['input_ids'].to(opt.device)
+        attention_mask = batch['attention_mask'].to(opt.device)
+        token_type_ids = batch['token_type_ids'].to(opt.device)
+        bbox = batch['bbox'].to(opt.device)
+        start_positions = batch['start_positions'].to(opt.device)
+        end_positions = batch['end_positions'].to(opt.device)
+        image = batch['image'].to(opt.device)
+
+        if eval:
+            with torch.no_grad():
+                outputs = model(input_ids = input_ids, 
+                    token_type_ids=token_type_ids, bbox = bbox, attention_mask = attention_mask, 
+                    image = image, start_positions = start_positions, end_positions=end_positions)  
+        else:
+            outputs = model(input_ids = input_ids, 
+                token_type_ids=token_type_ids, bbox = bbox, attention_mask = attention_mask, 
+                image = image, start_positions = start_positions, end_positions=end_positions)
         
-        # outputs = model(**batch)
-        outputs = model(input_ids = input_ids, 
-            bbox = bbox, 
-            attention_mask = attention_mask, 
-            pixel_values = pixel_values, 
-            labels = labels
-        )
+
     return outputs
 
 # for evaluation use (all batche inference)
 def predict_all_batches(opt,model,dataloader):
-    with torch.no_grad():
-        outputs, targets = [],[]
-        for _ii, data in enumerate(dataloader, start=0):
-            output = predict_one_batch(opt,model, data)
-            target = data['labels'].to(opt.device)
+        preds, tgts, val_loss = [],[], 0.0
+        for _ii, batch in enumerate(dataloader, start=0):
+            outputs = predict_one_batch(opt,model, batch, eval=True)
+            predictions = torch.argmax(outputs.logits, dim=-1)
+            target = batch['labels']
+            val_loss+=outputs.loss.item()
 
-            outputs.append(output.logits)   # logits
-            targets.append(target)
-        outputs = torch.cat(outputs)
-        targets = torch.cat(targets)
-        return outputs,targets
+            preds.append(predictions)   # logits
+            tgts.append(target)
+        preds = torch.cat(preds)
+        tgts = torch.cat(tgts)
+        return preds,tgts,val_loss
 
 
 # preds is the logits (label distribution);
 def evaluate(preds, targets, print_confusion=False):
-
     # n_total,num_classes = outputs.shape
     # 2) move to cpu to convert to numpy
     preds = preds.cpu().numpy()
-    print(preds)
-    preds = np.argmax(preds, axis=-1)
-    print(preds)
     target = targets.cpu().numpy()
-
-    print('tgt', target)
 
     # confusion = confusion_matrix(output, target)
     f1 = f1_score(target, preds, average='weighted')
@@ -107,10 +127,6 @@ def evaluate(preds, targets, print_confusion=False):
 
 def compute_metrics(opt, p,return_entity_level_metrics=False):
     predictions, labels = p
-    print(predictions[:5])
-    print(labels[:5])
-    predictions = np.argmax(predictions, axis=-1)   # -1 or 2
-
     # Remove ignored index (special tokens)
     true_predictions = [
         [opt.label_list[p] for (p, l) in zip(prediction, label) if l != -100]
@@ -145,14 +161,14 @@ def create_save_dir(params):
         os.mkdir('tmp_dir')
 
      # Create model dir
-    params.dir_name = '_'.join([params.network_type,params.dataset_name,str(round(time.time()))[-6:]])
-    dir_path = os.path.join('tmp_dir', params.dir_name)
+    dir_name = '_'.join([params.network_type,params.dataset_name,str(round(time.time()))[-6:]])
+    dir_path = os.path.join('tmp_dir', dir_name)
     if not os.path.exists(dir_path):
         os.mkdir(dir_path)  
 
     params.export_to_config(os.path.join(dir_path, 'config.ini'))
     pickle.dump(params, open(os.path.join(dir_path, 'config.pkl'), 'wb'))
-
+    return dir_path
 
 # Save the model
 def save_model(params, model, performance_str):
@@ -162,5 +178,5 @@ def save_model(params, model, performance_str):
     # 2) Write performance string
     eval_path = os.path.join(params.dir_path, 'eval')
     with open(eval_path, 'w') as f:
-        f.write(performance_str)
+        f.write(str(performance_str))
 
