@@ -40,10 +40,12 @@ def train(opt, model, mydata):
         
         # test
         model.eval()
-        preds,tgts, avg_loss = predict_all_batches(opt, model,loader_test)
-        print(f'Eval Loss: {avg_loss:.4f}')
+        preds,tgts, val_loss = predict_all_batches(opt, model,loader_test)
+        print(f'val Loss: {val_loss:.4f}')
 
         # res_dict = evaluate(preds,tgts)
+        if opt.task_type == 'docvqa':continue
+        
         res_dict = compute_metrics(opt, [preds,tgts])
         print(res_dict)
 
@@ -99,7 +101,10 @@ def predict_all_batches(opt,model,dataloader):
         for _ii, batch in enumerate(dataloader, start=0):
             outputs = predict_one_batch(opt,model, batch, eval=True)
             predictions = torch.argmax(outputs.logits, dim=-1)
-            target = batch['labels']
+            if opt.task_type == 'docvqa':
+                target = batch['start_positions']
+            else:
+                target = batch['labels']
             val_loss+=outputs.loss.item()
 
             preds.append(predictions)   # logits
