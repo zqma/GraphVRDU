@@ -4,7 +4,7 @@ from transformers import AutoProcessor
 
 
 
-class CORD:
+class FUNSD:
     def __init__(self,opt) -> None:    
         self.opt = opt
         '''
@@ -24,22 +24,21 @@ class CORD:
         })
         '''
         self.image_col_name = "image"
-        self.text_col_name = "words"
+        self.text_col_name = "tokens"
         self.boxes_col_name = "bboxes"
         self.label_col_name = "ner_tags"
         # load data
-        self.dataset = load_dataset("nielsr/cord-layoutlmv3")
+        self.dataset = load_dataset("nielsr/funsd-layoutlmv3")
+
 
         # prepare for getting trainable data
+        # 6 labels: {0: 'O', 1: 'B-HEADER', 2: 'I-HEADER', 3: 'B-QUESTION', 4: 'I-QUESTION', 5: 'B-ANSWER', 6: 'I-ANSWER'}
         self.processor = AutoProcessor.from_pretrained(opt.layoutlm_dir, apply_ocr=False)    # wrap of featureExtract & tokenizer
         opt.id2label, opt.label2id, opt.label_list = self.get_label_map(self.dataset)
         opt.num_labels = len(opt.label_list)
-        self.train_dataset, self.test_dataset = self.get_data('validation'), self.get_data('test')
+        # process to: 'input_ids', 'attention_mask', 'bbox', 'labels', 'pixel_values']
+        self.train_dataset, self.test_dataset = self.get_data('train'), self.get_data('test')
 
-        #
-        # print(self.test_dataset)
-        # doc1 = self.test_dataset[0]
-        # print(doc1['input_ids'])
 
     def prepare_one_doc(self,doc):
         images = doc[self.image_col_name] ##if you use an image path, this will need to be updated to read the image in
@@ -53,17 +52,18 @@ class CORD:
     def get_data(self,split='train',shuffle=True):
         # return self.prepare_one_doc(self.dataset[split])
         samples = self.dataset[split]   # get split
+
         trainable_samples = samples.map(
             self.prepare_one_doc,
             batched=True,
             remove_columns=samples.column_names,    # remove original features
-            # features = Features({
-            #     'pixel_values': Array3D(dtype="float32", shape=(3, 224, 224)),
-            #     'input_ids': Sequence(feature=Value(dtype='int64')),
-            #     'attention_mask': Sequence(Value(dtype='int64')),
-            #     'bbox': Array2D(dtype="int64", shape=(512, 4)),
-            #     'labels': Sequence(feature=Value(dtype='int64')),}
-            # )
+            features = Features({
+                'pixel_values': Array3D(dtype="float32", shape=(3, 224, 224)),
+                'input_ids': Sequence(feature=Value(dtype='int64')),
+                'attention_mask': Sequence(Value(dtype='int64')),
+                'bbox': Array2D(dtype="int64", shape=(512, 4)),
+                'labels': Sequence(feature=Value(dtype='int64')),}
+            )
         ).with_format("torch")
         # trainable_samples = trainable_samples.set_format("torch")  # with_format is important
         return trainable_samples
@@ -92,7 +92,6 @@ class CORD:
             id2label = {k: v for k,v in enumerate(label_list)}
             label2id = {v: k for k,v in enumerate(label_list)}
         return id2label, label2id, label_list
-    
 
 
 

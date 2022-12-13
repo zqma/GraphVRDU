@@ -1,7 +1,8 @@
-import spacy
-from spacy.tokenizer import Tokenizer
+# import spacy
+# from spacy.tokenizer import Tokenizer
 from transformers import LayoutLMTokenizer
 
+from transformers import BertTokenizer, BertModel
 
 
 class Embedding(object):
@@ -16,7 +17,8 @@ class Embedding(object):
         elif opt.network_type == 'layoutlm':
             self.tokenizer = LayoutLMTokenizer.from_pretrained(opt.layoutlm_dir)
         else:
-            self.tokenizer = BertTokenizer.from_pretrained(opt.distilbert_dir)
+            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            self.model = BertModel.from_pretrained("bert-base-uncased")
             self.vocab = self.tokenizer.vocab
             print("VOCAB", len(self.vocab))
             self.embedding_matrix,self.embedding_dict = self.get_embedding()
@@ -38,10 +40,12 @@ class Embedding(object):
 
 
     def get_text_vect(self,text):
-        doc = self.nlp(text)
+        # doc = self.nlp(text)
 		# word vector is doc[idx].vector
-        return doc.vector   # mean vector of the entire sentence
-
+        # return doc.vector   # mean vector of the entire sentence
+        inputs = tokenizer(text, return_tensors="pt")
+        outputs = model(**inputs,output_hidden_states=False)
+        return outputs.pooler_output
 
     def texts_to_seqences(self,sentences):
         """
@@ -60,3 +64,18 @@ class Embedding(object):
         return batch
         
 
+
+# tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+# model = BertModel.from_pretrained("bert-base-uncased")
+
+# inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
+# outputs = model(**inputs,output_hidden_states=True)
+
+# last_hidden_states = outputs.last_hidden_state
+# hidden_states = outputs.hidden_states
+# print(outputs.keys())
+
+# print(last_hidden_states)
+# # print(hidden_states)
+
+# print(outputs.pooler_output)
