@@ -12,7 +12,7 @@ class MLP(torch.nn.Module):
         if self.opt.task_type == 'node-classify':
             self.mlp1 = nn.Linear(opt.node_dim, opt.hidden_dim_1)
         else:
-            self.mlp1 = nn.Linear(opt.node_dim *2  + 2, opt.hidden_dim_1)
+            self.mlp1 = nn.Linear(opt.node_dim *2, opt.hidden_dim_1)
         self.mlp2 = nn.Linear(opt.hidden_dim_1, opt.hidden_dim_2)
 
         self.multilabel = nn.Linear(opt.hidden_dim_2, opt.output_dim)
@@ -31,7 +31,7 @@ class MLP(torch.nn.Module):
         x_src = x[edge_index[0]]
         x_tgt = x[edge_index[1]]
 
-        x = torch.cat((edge_attr, x_src, x_tgt),-1)
+        x = torch.cat(( x_src, x_tgt),-1)
 
         x = self.mlp1(x)
         x = x.relu()

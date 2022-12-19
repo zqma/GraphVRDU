@@ -10,7 +10,7 @@ import torch
 from utils.params import Params
 
 # from torch_geometric.transforms import NormalizeFeatures
-import dataload
+import dataSetup
 import GNNs
 from utils import util_trainer
 
@@ -32,9 +32,9 @@ if __name__=='__main__':
     print('Using device:', params.device)
 
     # section 2, load data;
-    mydata = dataload.setup(params)
-    if params.task_type == 'link-binary':
-        mydata.balance_edges()
+    mydata = dataSetup.setup(params)
+    # if params.task_type == 'link-binary':
+    #     mydata.balance_edges()
     # print(mydata.)
 
     # section 3, objective function and output dim

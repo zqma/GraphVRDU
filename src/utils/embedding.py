@@ -19,9 +19,9 @@ class Embedding(object):
         else:
             self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
             self.model = BertModel.from_pretrained("bert-base-uncased")
-            self.vocab = self.tokenizer.vocab
-            print("VOCAB", len(self.vocab))
-            self.embedding_matrix,self.embedding_dict = self.get_embedding()
+            # self.vocab = self.tokenizer.vocab
+            # print("VOCAB", len(self.vocab))
+            # self.embedding_matrix,self.embedding_dict = self.get_embedding()
 
 
     def get_embedding_dict(self,GLOVE_DIR):
@@ -43,9 +43,10 @@ class Embedding(object):
         # doc = self.nlp(text)
 		# word vector is doc[idx].vector
         # return doc.vector   # mean vector of the entire sentence
-        inputs = tokenizer(text, return_tensors="pt")
-        outputs = model(**inputs,output_hidden_states=False)
-        return outputs.pooler_output
+        inputs = self.tokenizer(text, return_tensors="pt")
+        outputs = self.model(**inputs,output_hidden_states=False)
+        vector = outputs.pooler_output.view(-1).detach().numpy()
+        return vector
 
     def texts_to_seqences(self,sentences):
         """

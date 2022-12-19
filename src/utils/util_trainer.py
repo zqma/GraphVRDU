@@ -4,10 +4,13 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.metrics import accuracy_score, f1_score,roc_auc_score,classification_report
 
 
-def my_loss(output, y):
+
+def joint_loss(opt,outputs,labels,t_lambda=0.5):
     # loss = torch.mean((output - y)**2)
-    loss = -(output.log()* y * 99 + (1-y)*(1-output).log()*1).mean()
+    crit1,crit2 = opt.criterion
+    loss = opt.t_lambda*crit1(outputs[0],labels[0]) + (1.0-opt.t_lambda)*crit2(outputs[1],labels[1])
     return loss
+
 
 # get criterion and determine the output dim
 def get_criterion(opt):
@@ -29,19 +32,32 @@ def get_criterion(opt):
         opt.output_dim = 1
         return torch.nn.L1Loss()
         # return torch.nn.MSELoss()
+    elif opt.task_type == 'joint':
+        opt.output_dim = 1
+        return [torch.nn.CrossEntropyLoss(),torch.nn.L1Loss()]
     else:
         raise Exception('task type error, not supported:{}'.format(opt.task_type)) 
 
-def get_target(opt,data):
+def get_target(opt,batch):
     if opt.task_type == 'link-binary':
-        target = data.y.to(opt.device)
+        target = batch.y.to(opt.device)
     elif opt.task_type == 'node-classify':
-        target = data.y_nrole.to(opt.device)
+        target = batch.y_nrole.to(opt.device)
     elif opt.task_type == 'neib-regression':
-        target = data.y_dist
+        target = batch.y_dist.to(opt.device)
     elif opt.task_type == 'direct-classify':
-        target = data.y_direct
+        target = batch.y_direct.to(opt.device)
+    elif opt.task_type == 'joint':
+        target = [batch.y_direct.to(opt.device),batch.y_dist.to(opt.device)]
     return target
+
+def get_loss(opt,outputs,labels):
+    if opt.task_type == 'joint':
+        loss = joint_loss(opt,outputs,labels)
+    else:
+        if opt.output_dim == 1: outputs = outputs.view(-1)
+        loss = opt.criterion(outputs,labels)  # Compute the loss solely based on the training nodes.
+    return loss
 
 def train(opt, model, mydata):
     # 1 data loader
@@ -57,47 +73,57 @@ def train(opt, model, mydata):
         model.train()
         for _i, graph in enumerate(loader_train,start=0):
             optimizer.zero_grad()  # Clear gradients.
-            out = model(graph)  # Perform a single forward pass.
-            tgt = get_target(opt,graph)
-            if opt.output_dim == 1: out = out.view(-1)
-            loss = opt.criterion(out,tgt)  # Compute the loss solely based on the training nodes.
+
+            outputs = predict_one_batch(opt,model,graph)
+            labels = get_target(opt,graph)
+            loss = get_loss(opt,outputs,labels)
             loss.backward()  # Derive gradients.
             optimizer.step()  # Update parameters based on gradients.
-        print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}')
+        
         # test
         model.eval()
-        preds,tgts = predict_all_graphs(opt, model,loader_test)
-        
+
+        preds,tgts,val_loss = predict_all_batches(opt, model,loader_test)
+        print(f'Epoch: {epoch:03d}, Loss: {val_loss:.4f}')
+
         # taste the pred
         # print(preds[:8])
         # print(tgts[:8])
-        if opt.task_type == 'neib-regression':
-            mse = test_mse(preds,tgts)
-            print('MSE:',mse)
+        if opt.task_type in ['neib-regression','joint']:
+            print('MSE is the val loss',)
         else:
             # val_acc = test_accu(preds, tgts)
             res_dict = evaluate(preds,tgts,True)
             print(res_dict)
-    return loss
+    return val_loss
 
 
-# return the predicted labels
-def predict_one_graph(model, graph):
+# for back propagation
+def predict_one_batch(opt,model, graph):
+    graph = graph.to(opt.device)
     pred = model(graph)
-    pred = pred.argmax(dim=-1)
     return pred
 
-def predict_all_graphs(opt, model, dataloader_test):
-    outputs, targets = [],[]
-    for _ii, data in enumerate(dataloader_test, start=0):
-        output = predict_one_graph(model, data)
-        target = get_target(opt, data).to(opt.device)
+def predict_all_batches(opt, model, dataloader_test):
+    outputs, targets, val_loss = [],[],0
 
-        outputs.append(output)
+    for _ii, batch in enumerate(dataloader_test, start=0):
+        preds = predict_one_batch(opt,model, batch)
+        target = get_target(opt, batch)
+        val_loss += get_loss(opt,preds,target)
+        if opt.task_type in ['neib-regression','joint']:        
+            continue
+
+        preds = torch.argmax(preds, dim=-1)
+        outputs.append(preds)
         targets.append(target)
+    # numeric return
+    if opt.task_type in ['neib-regression','joint']: 
+        return outputs,targets,val_loss
+    # category return
     outputs = torch.cat(outputs)
     targets = torch.cat(targets)
-    return outputs,targets
+    return outputs,targets,val_loss
 
 
 def test_accu(y_pred,y_truth):

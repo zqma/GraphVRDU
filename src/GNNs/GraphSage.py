@@ -1,19 +1,19 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import SAGEConv
 import torch.nn.functional as F
 
-class GCN(torch.nn.Module):
+class GraphSage(torch.nn.Module):
     def __init__(self, opt):
-        super(GCN, self).__init__()
+        super(GraphSage, self).__init__()
         # self.layer_num = opt.layer_num
         # self.encoder = nn.Linear(opt.input_dim, opt.hidden_dim)
         self.opt = opt
 
-        self.conv1 = GCNConv(opt.node_dim, opt.hidden_dim_1)
-        self.conv2 = GCNConv(opt.hidden_dim_1, opt.hidden_dim_2)
+        self.conv1 = SAGEConv(opt.node_dim, opt.hidden_dim_1)
+        self.conv2 = SAGEConv(opt.hidden_dim_1, opt.hidden_dim_2)
 
-        self.multi_dim4node = GCNConv(opt.hidden_dim_1, opt.output_dim)
+        self.multi_dim4node = SAGEConv(opt.hidden_dim_1, opt.output_dim)
 
         self.multi_dim4edge = nn.Linear(opt.hidden_dim_2 * 2 , opt.output_dim)
         self.single_dim4edge = nn.Linear(opt.hidden_dim_2 * 2, 1)

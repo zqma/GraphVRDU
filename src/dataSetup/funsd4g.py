@@ -16,16 +16,18 @@ class FUNSD:
 
     def __init__(self, opt=None):
         self.opt = opt
+        self.embed = embedding.Embedding(opt)
         self.train_graphs, self.train_node_labels, self.train_edge_labels, self.train_features = self.graph4FUNSD('train')
         self.test_graphs, self.test_node_labels, self.test_edge_labels, self.test_features = self.graph4FUNSD('test')
-        if opt.task_type == 'link-inary':
-            self.balance_edges()
+        # if opt.task_type == 'link-inary':
+        #     self.balance_edges()
         print('---train---')
         self.print_statis(self.train_node_labels,'train_node')
         self.print_statis(self.train_edge_labels,'train_edge')
         print('---test---')
         self.print_statis(self.test_node_labels,'test_node')
         self.print_statis(self.test_edge_labels,'test_edge')
+        
         
 
     def print_statis(self, labels, split='train'):
@@ -34,26 +36,26 @@ class FUNSD:
         print(split+ ' num:', len(all_labels))
         print(split + ' distri:', collections.Counter(all_labels))
 
-    def balance_edges(self):
-        for graph in self.train_graphs+self.test_graphs:
-            ids = []
-            u, v = graph.edge_index 
-            labels = graph.y
-            counterpart =False
-            for i in range(0,len(labels)):
-                if labels[i]>0: 
-                    ids.append(i)
-                    counterpart=True
-                else:
-                    if counterpart==True:
-                        ids.append(i)
-                        counterpart = False
-            # regenerate 
-            graph.y = graph.y[ids]
-            graph.edge_attr = graph.edge_attr[ids]
+    # def balance_edges(self):
+    #     for graph in self.train_graphs+self.test_graphs:
+    #         ids = []
+    #         u, v = graph.edge_index 
+    #         labels = graph.y
+    #         counterpart =False
+    #         for i in range(0,len(labels)):
+    #             if labels[i]>0: 
+    #                 ids.append(i)
+    #                 counterpart=True
+    #             else:
+    #                 if counterpart==True:
+    #                     ids.append(i)
+    #                     counterpart = False
+    #         # regenerate 
+    #         graph.y = graph.y[ids]
+    #         graph.edge_attr = graph.edge_attr[ids]
 
-            edge_index = [u[ids].numpy(),v[ids].numpy()]
-            graph.edge_index = torch.tensor(edge_index)
+    #         edge_index = [u[ids].numpy(),v[ids].numpy()]
+    #         graph.edge_index = torch.tensor(edge_index)
 
 
     def graph4FUNSD(self,split='test'):
@@ -134,16 +136,16 @@ class FUNSD:
             # else:
             #     raise Exception('pls choose correct edge types')
             # u,v = fully_connected(ids)
-            edge_index, edge_attr = util.KNN(Image.open(img_path).size, boxs, k=6)
+            edge_index, edge_attr = util.KNN(Image.open(img_path).size, boxs, k=10)
             u, v = edge_index    # add, [2 * num_edge], [num_edge * 2]
             y_dist = [round(math.log(dist+1),2) for dist,_ in edge_attr]  # project to [0-7]
             y_direct = [angle//45 for _,angle in edge_attr]  # transforom into 8 directions
 
-            # edge labels (binary or )
+            # edge labels (binary or)
             el = []
             for e in zip(u,v):
                 edge = [e[0], e[1]]
-                if edge in pair_labels: 
+                if edge in pair_labels:
                     el.append(1)    # is link (e.g., question answering)
                 else: 
                     el.append(0)    # not link (e.g., neibor but no QA relation)
@@ -153,17 +155,16 @@ class FUNSD:
             # initialize the vector: s_i, shape(302,)
             x = []
             for i,text in enumerate(texts):
-                x.append(np.concatenate((embedding.get_text_vect(text),np.array(sizes[i])), axis=-1))
+                x.append(np.concatenate((self.embed.get_text_vect(text),np.array(sizes[i])), axis=-1))
             # graph
-            graph = Data(x = torch.tensor(x, dtype=torch.float), 
-                    edge_index=torch.tensor(edge_index,dtype=torch.long), 
-                    edge_attr= torch.tensor(edge_attr,dtype=torch.long), 
-                    y = torch.tensor(el,dtype=torch.float),  # is edge link label
-                    y_dist = torch.tensor(y_dist, dtype=torch.float),
-                    y_direct = torch.tensor(y_direct,dtype=torch.long),   #
-                    y_nrole = torch.tensor(y_nrole, dtype=torch.long)
+            graph = Data(x = torch.tensor(x,dtype=torch.float).to(self.opt.device), 
+                    edge_index=torch.tensor(edge_index,dtype=torch.long).to(self.opt.device), 
+                    edge_attr= torch.tensor(edge_attr,dtype=torch.long).to(self.opt.device), 
+                    y = torch.tensor(el,dtype=torch.float).to(self.opt.device),  # is edge link label
+                    y_dist = torch.tensor(y_dist, dtype=torch.float).to(self.opt.device),
+                    y_direct = torch.tensor(y_direct,dtype=torch.long).to(self.opt.device),   #
+                    y_nrole = torch.tensor(y_nrole, dtype=torch.long).to(self.opt.device)
                 )
-            print(graph)
             graphs.append(graph)
 
         torch.save([graphs, node_labels, edge_labels, features], data_path+split+'.pt')
