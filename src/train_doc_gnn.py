@@ -12,7 +12,7 @@ from utils.params import Params
 # from torch_geometric.transforms import NormalizeFeatures
 import dataSetup
 import GNNs
-from utils import util_trainer
+from GNNs import trainer
 
 
 def parse_args():
@@ -38,12 +38,12 @@ if __name__=='__main__':
     # print(mydata.)
 
     # section 3, objective function and output dim
-    params.criterion = util_trainer.get_criterion(params)
+    params.criterion = trainer.get_criterion(params)
 
     # section 4, model, loss function, and optimizer
     model = GNNs.setup(params).to(params.device)
 
     # section 5, train and evaluate
-    util_trainer.train(params, model, mydata)
+    trainer.train(params, model, mydata)
 
 

@@ -20,7 +20,7 @@ class MLP(torch.nn.Module):
         
 
     def forward(self,data):
-        if self.opt.task_type in ['link-binary','direct-classify','neib-regression','joint']:
+        if self.opt.task_type in ['link-binary','direct-classify','dist-regression','joint']:
             return self.edge_prediction(data)
         elif self.opt.task_type == 'node-classify':
             return self.node_classifier(data)
@@ -46,7 +46,7 @@ class MLP(torch.nn.Module):
         elif self.opt.task_type == 'direct-classify':   # multi-class classification
             y = self.multilabel(x)
             return F.log_softmax(x, dim=-1)
-        elif self.opt.task_type == 'neib-regression':   # numeric regression
+        elif self.opt.task_type == 'dist-regression':   # numeric regression
             y = self.single(x)
             return y
         elif self.opt.task_type == 'joint':

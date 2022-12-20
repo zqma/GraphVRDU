@@ -83,7 +83,7 @@ class FUNSD:
         features = {'paths':[], 'texts':[], 'boxs':[]}
 
 
-        
+        glob_seg_id = 0
         # each graph level
         for json_file in tqdm(os.listdir(os.path.join(data_path,'adjusted_annotations')), desc='initializing the graphs'):
             img_name = f'{json_file.split(".")[0]}.png'
@@ -109,7 +109,10 @@ class FUNSD:
                 sizes.append([s_width,s_height])
                 texts.append(seg['text'])
                 nl.append(seg['label'])
-                ids.append(seg['id'])
+                # ids.append(seg['id'])
+                ids.append(glob_seg_id)
+                glob_seg_id+=1
+                
                 id2label[seg['id']] = seg['label']
                 for pair in seg['linking']:
                     pair_labels.append(pair)    # is it directed??
@@ -157,13 +160,14 @@ class FUNSD:
             for i,text in enumerate(texts):
                 x.append(np.concatenate((self.embed.get_text_vect(text),np.array(sizes[i])), axis=-1))
             # graph
-            graph = Data(x = torch.tensor(x,dtype=torch.float).to(self.opt.device), 
-                    edge_index=torch.tensor(edge_index,dtype=torch.long).to(self.opt.device), 
-                    edge_attr= torch.tensor(edge_attr,dtype=torch.long).to(self.opt.device), 
-                    y = torch.tensor(el,dtype=torch.float).to(self.opt.device),  # is edge link label
-                    y_dist = torch.tensor(y_dist, dtype=torch.float).to(self.opt.device),
-                    y_direct = torch.tensor(y_direct,dtype=torch.long).to(self.opt.device),   #
-                    y_nrole = torch.tensor(y_nrole, dtype=torch.long).to(self.opt.device)
+            graph = Data(x = torch.tensor(x,dtype=torch.float), 
+                    edge_index=torch.tensor(edge_index,dtype=torch.long), 
+                    edge_attr= torch.tensor(edge_attr,dtype=torch.long), 
+                    y = torch.tensor(el,dtype=torch.float),  # is edge link label
+                    y_dist = torch.tensor(y_dist, dtype=torch.float),
+                    y_direct = torch.tensor(y_direct,dtype=torch.long),   #
+                    y_nrole = torch.tensor(y_nrole, dtype=torch.long),
+                    seg_id = torch.tensor(ids, dtype=torch.long)
                 )
             graphs.append(graph)
 

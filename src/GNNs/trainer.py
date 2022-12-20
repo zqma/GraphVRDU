@@ -2,7 +2,8 @@ import torch
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.metrics import accuracy_score, f1_score,roc_auc_score,classification_report
-
+import os, pickle
+import time
 
 
 def joint_loss(opt,outputs,labels,t_lambda=0.5):
@@ -28,7 +29,7 @@ def get_criterion(opt):
         # class_weights=torch.tensor([0.9,0.1],dtype=torch.float)
         return torch.nn.BCEWithLogitsLoss()
         # return my_loss
-    elif opt.task_type == 'neib-regression':
+    elif opt.task_type == 'dist-regression':
         opt.output_dim = 1
         return torch.nn.L1Loss()
         # return torch.nn.MSELoss()
@@ -43,7 +44,7 @@ def get_target(opt,batch):
         target = batch.y.to(opt.device)
     elif opt.task_type == 'node-classify':
         target = batch.y_nrole.to(opt.device)
-    elif opt.task_type == 'neib-regression':
+    elif opt.task_type == 'dist-regression':
         target = batch.y_dist.to(opt.device)
     elif opt.task_type == 'direct-classify':
         target = batch.y_direct.to(opt.device)
@@ -68,6 +69,8 @@ def train(opt, model, mydata):
     # 2 optimizer
     optimizer = torch.optim.Adam(model.parameters(),lr=opt.lr, weight_decay=5e-4)
 
+    opt.dir_path = create_save_dir(opt)    # prepare dir for saving best models
+    best_loss = 999.9
     for epoch in range(opt.epochs):
         # train mode
         model.train()
@@ -86,10 +89,15 @@ def train(opt, model, mydata):
         preds,tgts,val_loss = predict_all_batches(opt, model,loader_test)
         print(f'Epoch: {epoch:03d}, Loss: {val_loss:.4f}')
 
+        if val_loss < best_loss:
+            # save_model(opt, model,res_dict)
+            print('The best model saved with loss:', val_loss)  
+
+            output_hidden_vect(opt,model,loader_test)
         # taste the pred
         # print(preds[:8])
         # print(tgts[:8])
-        if opt.task_type in ['neib-regression','joint']:
+        if opt.task_type in ['dist-regression','joint']:
             print('MSE is the val loss',)
         else:
             # val_acc = test_accu(preds, tgts)
@@ -98,12 +106,13 @@ def train(opt, model, mydata):
     return val_loss
 
 
-# for back propagation
+# only return pred logits, for back propagation
 def predict_one_batch(opt,model, graph):
     graph = graph.to(opt.device)
     pred = model(graph)
     return pred
 
+# return pred labels, labels, and loss
 def predict_all_batches(opt, model, dataloader_test):
     outputs, targets, val_loss = [],[],0
 
@@ -111,20 +120,39 @@ def predict_all_batches(opt, model, dataloader_test):
         preds = predict_one_batch(opt,model, batch)
         target = get_target(opt, batch)
         val_loss += get_loss(opt,preds,target)
-        if opt.task_type in ['neib-regression','joint']:        
+        if opt.task_type in ['dist-regression','joint']:        
             continue
 
         preds = torch.argmax(preds, dim=-1)
         outputs.append(preds)
         targets.append(target)
+
     # numeric return
-    if opt.task_type in ['neib-regression','joint']: 
+    if opt.task_type in ['dist-regression','joint']: 
         return outputs,targets,val_loss
     # category return
     outputs = torch.cat(outputs)
     targets = torch.cat(targets)
+
     return outputs,targets,val_loss
 
+
+def output_hidden_vect(opt,model,dataloader):
+    seg_ids,seg_vects = [],[]
+    
+    for _ii, batch in enumerate(dataloader, start=0):
+        seg_ids.append(batch.seg_id)
+        batch = batch.to(opt.device)
+        vects = model.encode(batch)
+        seg_vects.append(vects)
+
+    seg_ids = torch.cat(seg_ids)
+    seg_vects = torch.cat(seg_vects)
+    pairs = zip(seg_ids.detach().cpu().numpy(),seg_vects.detach().cpu().numpy())
+    vect_path = os.path.join(opt.dir_path, 'seg_vect')
+    with open(vect_path, 'w',encoding='utf8') as f:
+        for key,val in pairs:
+            f.write(str(key)+'\t'+str(val)+'\n')
 
 def test_accu(y_pred,y_truth):
     test_correct = y_pred == y_truth # Check against ground-truth labels.
@@ -151,3 +179,27 @@ def evaluate(outputs, targets, print_confusion=False):
     if print_confusion: print(classification_report(target, output))
 
     return performance_dict
+
+def create_save_dir(params):
+    if not os.path.exists('tmp_dir'):
+        os.mkdir('tmp_dir')
+
+     # Create model dir
+    dir_name = '_'.join([params.network_type,params.dataset_name,str(round(time.time()))[-6:]])
+    dir_path = os.path.join('tmp_dir', dir_name)
+    if not os.path.exists(dir_path):
+        os.mkdir(dir_path)  
+
+    params.export_to_config(os.path.join(dir_path, 'config.ini'))
+    pickle.dump(params, open(os.path.join(dir_path, 'config.pkl'), 'wb'))
+    return dir_path
+
+# Save the model
+def save_model(params, model, performance_str):
+    # 1) save the learned model (model and the params used)
+    torch.save(model.state_dict(), os.path.join(params.dir_path, 'model'))
+
+    # 2) Write performance string
+    eval_path = os.path.join(params.dir_path, 'eval')
+    with open(eval_path, 'w') as f:
+        f.write(str(performance_str))
