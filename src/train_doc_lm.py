@@ -1,17 +1,13 @@
 import os
 import argparse
-from pydoc import describe
+from torch.utils.data import DataLoader
 
-from pandas import describe_option
-
-# import torch.optim
-# os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import torch
 import pickle
 from utils.params import Params
 import LMs
 # from torch_geometric.transforms import NormalizeFeatures
-import dataload
+import dataSetup
 from LMs import trainer
 # from utils import util_trainer 
 import LMs
@@ -33,7 +29,7 @@ if __name__=='__main__':
     print('Using device:', params.device)
 
     # section 2, load data; prepare output_dim/num_labels, id2label, label2id for section3; 
-    mydata = dataload.setup(params)
+    mydata = dataSetup.setup(params)
 
     # section 3, objective function and output dim/ move to trainer
     # params.criterion = util_trainer.get_criterion(params)
@@ -48,6 +44,11 @@ if __name__=='__main__':
         model = LMs.setup(params).to(params.device)
 
     # section 5, train and evaluate
-    trainer.train(params, model, mydata)
+    best_f1 = trainer.train(params, model, mydata)
+    print('best f1:', best_f1)
+
+    # sectioin 6, evaluate only
+    # loader_test = DataLoader(mydata.test_dataset, batch_size=params.batch_size)
+    # trainer.test_eval(params,model,loader_test)
 
 

@@ -29,7 +29,7 @@ class FUNSD:
         self.label_col_name = "ner_tags"
         # load data
         self.dataset = load_dataset("nielsr/funsd-layoutlmv3")
-
+        print('--dataset:--',self.dataset)
 
         # prepare for getting trainable data
         # 6 labels: {0: 'O', 1: 'B-HEADER', 2: 'I-HEADER', 3: 'B-QUESTION', 4: 'I-QUESTION', 5: 'B-ANSWER', 6: 'I-ANSWER'}

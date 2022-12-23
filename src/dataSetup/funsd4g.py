@@ -27,9 +27,8 @@ class FUNSD:
         print('---test---')
         self.print_statis(self.test_node_labels,'test_node')
         self.print_statis(self.test_edge_labels,'test_edge')
-        
-        
 
+        
     def print_statis(self, labels, split='train'):
         all_labels = []
         for nl in labels: all_labels += nl

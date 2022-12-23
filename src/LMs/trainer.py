@@ -27,33 +27,40 @@ def train(opt, model, mydata):
     
     
     for epoch in range(opt.epochs):    
+        print('epoch:',epoch,'/',str(opt.epochs))
         # train mode
         model.train()
-        train_loss = 0.0
         for batch in tqdm(loader_train, desc = 'Training'):
             optimizer.zero_grad()  # Clear gradients.
             outputs = predict_one_batch(opt,model,batch,eval=False)
             loss = outputs.loss
             loss.backward()
             optimizer.step()  # Update parameters based on gradients.
-            train_loss += loss.item()
         
-        # test
-        model.eval()
-        preds,tgts, val_loss = predict_all_batches(opt, model,loader_test)
-        print(f'val Loss: {val_loss:.4f}')
-
-        # res_dict = evaluate(preds,tgts)
-        if opt.task_type == 'docvqa':continue
-        
-        res_dict = compute_metrics(opt, [preds,tgts])
-        print(res_dict)
-
+        # eval mode
+        res_dict = test_eval(opt,model,loader_test)
         if res_dict['f1']>best_f1:
             save_model(opt, model,res_dict)
             best_f1 = res_dict['f1']
-            print('The best model saved with f1:', best_f1)        
+            print('The best model saved with f1:', best_f1)
+    
+    return best_f1
 
+
+def test_eval(opt,model,loader_test):
+    # test
+    model.eval()
+    preds,tgts, val_loss = predict_all_batches(opt, model,loader_test)
+    print(f'val Loss: {val_loss:.4f}')
+
+    # res_dict = evaluate(preds,tgts)
+    if opt.task_type == 'docvqa':
+        return
+    
+    res_dict = compute_metrics(opt, [preds,tgts])
+    print(res_dict)
+
+    return res_dict
 
 # for backpropagation use, so define the input variables
 def predict_one_batch(opt, model, batch, eval=False):
