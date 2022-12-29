@@ -1,8 +1,8 @@
 from datasets import load_dataset ,Features, Sequence, Value, Array2D, Array3D
 from datasets.features import ClassLabel
 from transformers import AutoProcessor
-
-
+import json
+import os
 
 class FinDoc:
     def __init__(self,opt) -> None:    
@@ -64,7 +64,7 @@ class FinDoc:
             'id':[],
             'texts':[],
             'bboxes':[],
-            'labels':[]
+            'labels':[],
             'image':[]
         }
         

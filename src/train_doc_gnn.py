@@ -35,7 +35,7 @@ if __name__=='__main__':
     mydata = dataSetup.setup(params)
     # if params.task_type == 'link-binary':
     #     mydata.balance_edges()
-    # print(mydata.)
+    # print(mydata)
 
     # section 3, objective function and output dim
     params.criterion = trainer.get_criterion(params)

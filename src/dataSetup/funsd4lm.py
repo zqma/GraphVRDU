@@ -62,8 +62,8 @@ class FUNSD:
                 'input_ids': Sequence(feature=Value(dtype='int64')),
                 'attention_mask': Sequence(Value(dtype='int64')),
                 'bbox': Array2D(dtype="int64", shape=(512, 4)),
-                'labels': Sequence(feature=Value(dtype='int64')),}
-            )
+                'labels': Sequence(feature=Value(dtype='int64')),
+            })
         ).with_format("torch")
         # trainable_samples = trainable_samples.set_format("torch")  # with_format is important
         return trainable_samples
