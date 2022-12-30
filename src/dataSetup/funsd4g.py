@@ -28,7 +28,6 @@ class FUNSD:
         self.print_statis(self.test_node_labels,'test_node')
         self.print_statis(self.test_edge_labels,'test_edge')
 
-        
     def print_statis(self, labels, split='train'):
         all_labels = []
         for nl in labels: all_labels += nl
@@ -81,16 +80,18 @@ class FUNSD:
         graphs, node_labels, edge_labels = [],[],[]
         features = {'paths':[], 'texts':[], 'boxs':[]}
 
+        ann_dir = os.path.join(data_path, "adjusted_annotations")
 
-        glob_seg_id = 0
+
         # each graph level
-        for json_file in tqdm(os.listdir(os.path.join(data_path,'adjusted_annotations')), desc='initializing the graphs'):
+        # for json_file in tqdm(os.listdir(os.path.join(data_path,'adjusted_annotations')), desc='initializing the graphs'):
+        for doc_idx, json_file in enumerate(sorted(os.listdir(ann_dir))):
             img_name = f'{json_file.split(".")[0]}.png'
             img_path = os.path.join(data_path,'images',img_name)
             features['paths'].append(img_path)
 
             #!! graph-level info collection !!
-            boxs,texts,ids,nl = [],[],[],[] # raw node label (nl)
+            boxs,texts,ids,seg_ids,nl = [],[],[],[],[] # raw node label (nl)
             pair_labels = []
             id2label = {}
             pair2label = {}
@@ -98,25 +99,41 @@ class FUNSD:
             # my adding
             sizes = []
 
-            with open(os.path.join(data_path,'adjusted_annotations', json_file), 'r') as f:
-                json_form = json.load(f)['form']
+            file_path = os.path.join(ann_dir, json_file)
+            with open(file_path, 'r',encoding='utf8') as f:
+                data = json.load(f)
 
+            seg_id = 0
             # node-level
-            for seg in json_form:
+            for seg in data['form']:
+                # judge whether it needs being ignored
+                text = seg['text']
+                if text.strip() == '': continue
+                # just to make it consistent
+                words, label = seg["words"], seg["label"]
+                words = [w for w in words if w["text"].strip() != ""]
+                if len(words) == 0:
+                    continue
+
+                # append values
                 boxs.append(seg['box'])
                 s_width, s_height = boxs[-1][2]-boxs[-1][0], boxs[-1][3] - boxs[-1][1]
                 sizes.append([s_width,s_height])
-                texts.append(seg['text'])
+                texts.append(text)
+
                 nl.append(seg['label'])
-                # ids.append(seg['id'])
-                ids.append(glob_seg_id)
-                glob_seg_id+=1
+                # item_id and seg_id
+                ids.append(seg['id'])
+                seg_ids.append(seg_id)  # seg_id
                 
                 id2label[seg['id']] = seg['label']
                 for pair in seg['linking']:
                     pair_labels.append(pair)    # is it directed??
+                seg_id += 1
             # To re-index the matrix by ordered idx
             for i,pair in enumerate(pair_labels):
+                if (pair[0] not in id2label) or (pair[1] not in id2label):
+                    continue
                 pair_label = id2label[pair[0]] + '_' + id2label[pair[1]]
                 if pair_label != 'question_answer': continue    # filter non-QA values
                 # re-index the edge matrix w.r.t the x
@@ -153,6 +170,8 @@ class FUNSD:
                     el.append(0)    # not link (e.g., neibor but no QA relation)
             edge_labels.append(el)
 
+            doc_ids = [doc_idx for _ in range(len(seg_ids))]
+
             # creating the single graph
             # initialize the vector: s_i, shape(302,)
             x = []
@@ -166,8 +185,10 @@ class FUNSD:
                     y_dist = torch.tensor(y_dist, dtype=torch.float),
                     y_direct = torch.tensor(y_direct,dtype=torch.long),   #
                     y_nrole = torch.tensor(y_nrole, dtype=torch.long),
-                    seg_id = torch.tensor(ids, dtype=torch.long)
-                )
+                    item_id = torch.tensor(ids, dtype=torch.long),
+                    seg_id = torch.tensor(seg_ids, dtype=torch.long),
+                    doc_id = torch.tensor(doc_ids, dtype=torch.long)
+            )
             graphs.append(graph)
 
         torch.save([graphs, node_labels, edge_labels, features], data_path+split+'.pt')

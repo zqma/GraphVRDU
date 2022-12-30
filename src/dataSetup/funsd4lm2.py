@@ -45,13 +45,15 @@ class FUNSD:
 
 
     def _prepare_one_doc(self,doc):
+        doc_id = doc['id']
+        seg_ids = doc['seg_ids']
         images = doc[self.image_col_name] ##if you use an image path, this will need to be updated to read the image in
         words = doc[self.text_col_name]
         boxes = doc[self.boxes_col_name]
         word_labels = doc[self.label_col_name]
         encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
                             truncation=True, padding="max_length") # must put return tensor
-        encoding['gvect'] = self.get_graph_vects(doc[self.seg_col_name])
+        # encoding['gvect'] = self.get_graph_vects(doc[self.seg_col_name])
 
         return encoding
 

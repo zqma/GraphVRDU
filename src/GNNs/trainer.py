@@ -92,8 +92,9 @@ def train(opt, model, mydata):
         if val_loss < best_loss:
             # save_model(opt, model,res_dict)
             print('The best model saved with loss:', val_loss)  
-
-            output_hidden_vect(opt,model,loader_test)
+            # update the pre-trained vectors
+            output_hidden_vect(opt,model,loader_test,'test')
+            output_hidden_vect(opt,model,loader_train,'train')
         # taste the pred
         # print(preds[:8])
         # print(tgts[:8])
@@ -137,22 +138,28 @@ def predict_all_batches(opt, model, dataloader_test):
     return outputs,targets,val_loss
 
 
-def output_hidden_vect(opt,model,dataloader):
-    seg_ids,seg_vects = [],[]
+def output_hidden_vect(opt,model,dataloader,split='test'):
+    doc_ids, seg_ids,seg_vects = [], [],[]
     
     for _ii, batch in enumerate(dataloader, start=0):
         seg_ids.append(batch.seg_id)
+        doc_ids.append(batch.doc_id)
         batch = batch.to(opt.device)
         vects = model.encode(batch)
         seg_vects.append(vects)
-
+    doc_ids = torch.cat(doc_ids)
     seg_ids = torch.cat(seg_ids)
     seg_vects = torch.cat(seg_vects)
-    pairs = zip(seg_ids.detach().cpu().numpy(),seg_vects.detach().cpu().numpy())
-    vect_path = os.path.join(opt.dir_path, 'seg_vect')
+    
+    pairs = zip(doc_ids.detach().cpu().numpy(),
+        seg_ids.detach().cpu().numpy(),
+        seg_vects.detach().cpu().numpy()
+    )
+    vect_path = os.path.join(opt.dir_path, opt.network_type+'seg_vect_'+split)
     with open(vect_path, 'w',encoding='utf8') as f:
-        for key,val in pairs:
-            f.write(str(key)+'\t'+str(val)+'\n')
+        for docid,segid,vect in pairs:
+            f.write(str(docid)+'\t'+str(segid)+'\t'+str(vect).replace('\n','')+'\n')
+
 
 def test_accu(y_pred,y_truth):
     test_correct = y_pred == y_truth # Check against ground-truth labels.
