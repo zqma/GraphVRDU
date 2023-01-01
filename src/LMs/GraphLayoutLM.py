@@ -2,11 +2,13 @@ from transformers import LayoutLMv3Processor, LayoutLMv3Model
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 import torch
+from transformers.utils import ModelOutput
 
 class GraphLayoutLMTokenclassifier(nn.Module):
     def __init__(self, opt, freeze_bert=False):
         super(GraphLayoutLMTokenclassifier, self).__init__()
         self.opt = opt
+        self.num_labels = opt.num_labels
         # self.config = RobertaConfig.from_pretrained(opt.roberta_dir)
         # self.roberta = RobertaModel(self.config)
         self.layoutlm = LayoutLMv3Model.from_pretrained(opt.layoutlm_dir, num_labels=opt.num_labels, label2id=opt.label2id, id2label=opt.id2label)
@@ -41,5 +43,8 @@ class GraphLayoutLMTokenclassifier(nn.Module):
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
-        return loss,logits
+        return ModelOutput(
+            loss=loss,
+            logits = logits
+        )
         # return outputs

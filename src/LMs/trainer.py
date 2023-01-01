@@ -70,15 +70,19 @@ def predict_one_batch(opt, model, batch, eval=False):
         bbox = batch['bbox'].to(opt.device)
         labels = batch['labels'].to(opt.device)
         pixel_values = batch['pixel_values'].to(opt.device)
+        gvect = batch['gvect'].to(opt.device)
+        # for key,val in batch.items():
+        #     val = val.to(opt.device)
+
         if eval:
             with torch.no_grad():
                 outputs = model(
                     input_ids = input_ids, bbox = bbox, attention_mask = attention_mask, 
-                    pixel_values = pixel_values, labels = labels)  
+                    pixel_values = pixel_values, labels = labels, gvect = gvect )  
         else:
             outputs = model(
                 input_ids = input_ids, bbox = bbox, attention_mask = attention_mask, 
-                pixel_values = pixel_values, labels = labels)
+                pixel_values = pixel_values, labels = labels, gvect = gvect )
 
     elif opt.task_type == 'docvqa':
         input_ids = batch['input_ids'].to(opt.device)

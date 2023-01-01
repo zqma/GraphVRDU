@@ -4,7 +4,9 @@ from transformers import AutoProcessor
 from datasets import Dataset,DatasetDict
 import os,json
 from PIL import Image
-
+import ast
+import numpy as np
+import torch
 
 class FUNSD:
     def __init__(self,opt) -> None:    
@@ -29,6 +31,10 @@ class FUNSD:
         self.dataset = self.get_train_test()
         print('--dataset:--',self.dataset)
 
+         # read vectors 
+        self.train_graph, self.test_graph = self._load_graph_vects('train'),self._load_graph_vects('test')
+
+
         opt.id2label, opt.label2id, opt.label_list = self._get_label_map(self.dataset)
         opt.num_labels = len(opt.label_list)
         
@@ -43,26 +49,60 @@ class FUNSD:
         # process to: 'input_ids', 'attention_mask', 'bbox', 'labels', 'pixel_values']
         self.train_dataset, self.test_dataset = self.get_data('train'), self.get_data('test')
 
+       
+    def _load_graph_vects(self, split):
+        id2vect = {}
+        with open(self.opt.graph_vect_path+'graphsageseg_vect_'+split, 'r', encoding='utf8') as fr:
+            data = fr.readlines()
+        for line in data:
+            strs = line.split('\t')
+            id = strs[0].strip()+'_'+strs[1].strip()
+            vect = strs[2].replace('[','')
+            vect = vect.replace(']','')
+            vect = np.asarray(vect.split(),dtype='float32')
+            id2vect[id] = list(vect)
+        return id2vect
+    # return a list of max_len * dim (512 * 32) matrix vect
+    def _get_graph_vects(self,id_list,split,max_len=512):
+        if split=='train':
+            res = [self.train_graph[id] for id in id_list]
+        else:
+            res = [self.test_graph[id] for id in id_list]
+        zero_vect = [0]*32
+        res = res + [zero_vect for _ in range(max_len-len(res))]
+        return res[:max_len]
 
-    def _prepare_one_doc(self,doc):
-        doc_id = doc['id']
-        seg_ids = doc['seg_ids']
+    def _prepare_one_doc(self,doc,split='train'):
+        # the result in encoding are mostly list (or list of list) of values
+        
         images = doc[self.image_col_name] ##if you use an image path, this will need to be updated to read the image in
         words = doc[self.text_col_name]
         boxes = doc[self.boxes_col_name]
         word_labels = doc[self.label_col_name]
         encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
                             truncation=True, padding="max_length") # must put return tensor
-        # encoding['gvect'] = self.get_graph_vects(doc[self.seg_col_name])
-
+        # custom features
+        gvects = []
+        batch_doc_ids = doc['id']
+        batch_seg_ids = doc['seg_ids']
+        for doc_id, seg_ids in zip(batch_doc_ids,batch_seg_ids):
+            gvect = self._get_graph_vects([str(doc_id)+'_'+str(seg_id) for seg_id in seg_ids],split)
+            gvects.append(gvect)
+        encoding['gvect'] = gvects
+        # print(encoding['gvect'])
+        # for k in encoding.items():
+        #     encoding[k]=encoding[k][0]
         return encoding
 
     def get_data(self,split='train',shuffle=True):
         # return self.prepare_one_doc(self.dataset[split])
         samples = self.dataset[split]   # get split
+        samples.cleanup_cache_files()
         trainable_samples = samples.map(
             self._prepare_one_doc,  # process new features
-            batched=True,   # 
+            fn_kwargs={'split':split},
+
+            batched=True,   # default is always true
             remove_columns=samples.column_names,    # remove old features
             features = Features({   # specify new feature types
                 'pixel_values': Array3D(dtype="float32", shape=(3, 224, 224)),
@@ -70,7 +110,7 @@ class FUNSD:
                 'attention_mask': Sequence(Value(dtype='int64')),
                 'bbox': Array2D(dtype="int64", shape=(512, 4)),
                 'labels': Sequence(feature=Value(dtype='int64')),
-                # 'labels': ClassLabel(num_classes=7,names=['O','B-HEADER','I-HEADER','B-QUESTION','I-QUESTION','B-ANSWER', 'I-ANSWER']),
+                'gvect': Array2D(dtype="float32", shape=(512,32)),
             })
         ).with_format("torch")
         # trainable_samples = trainable_samples.set_format("torch")  # with_format is important

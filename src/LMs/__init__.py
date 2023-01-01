@@ -2,6 +2,8 @@
 # from LMs.Roberta import RobertaClassifier
 from LMs.LayoutLM import LayoutLMTokenclassifier
 from LMs.LayoutLM import LayoutLM4DocVQA
+from LMs.GraphLayoutLM import GraphLayoutLMTokenclassifier
+
 
 def setup(opt):
     print('network:' + opt.network_type)
@@ -12,7 +14,11 @@ def setup(opt):
             model = LayoutLMTokenclassifier(opt)
         elif opt.task_type == 'docvqa':
             model = LayoutLM4DocVQA(opt)
+    elif opt.network_type == 'graph_layoutlm':
+        model = GraphLayoutLMTokenclassifier(opt)
     else:
         raise Exception('model not supported:{}'.format(opt.network_type))
 
     return model
+
+

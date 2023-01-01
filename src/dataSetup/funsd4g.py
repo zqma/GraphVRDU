@@ -11,6 +11,7 @@ from utils import util, embedding
 import math
 from os import path
 import collections
+import ast
 
 class FUNSD:
 
