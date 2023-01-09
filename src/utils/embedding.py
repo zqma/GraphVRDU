@@ -38,7 +38,6 @@ class Embedding(object):
         return embeddings_index
 
 
-
     def get_text_vect(self,text):
         # doc = self.nlp(text)
 		# word vector is doc[idx].vector

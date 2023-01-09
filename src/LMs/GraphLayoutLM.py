@@ -22,7 +22,8 @@ class GraphLayoutLMTokenclassifier(nn.Module):
 
     def forward(self,input_ids, bbox, attention_mask, pixel_values, labels, gvect):
         outputs = self.layoutlm(input_ids = input_ids, bbox = bbox, attention_mask = attention_mask, pixel_values = pixel_values)
-        
+        # outputs = self.layoutlm(input_ids = input_ids, bbox = None, attention_mask = attention_mask, pixel_values = None)
+
         input_shape = input_ids.size()
         seq_length = input_shape[1]
 
@@ -37,8 +38,9 @@ class GraphLayoutLMTokenclassifier(nn.Module):
         # sequence_output = outputs[0][:, 0, :]
 
         # calculate label and loss
-        logits = self.classifier(sequence_output)   # label prob distribution 
+        logits = self.classifier(sequence_output)   # label prob distribution shape(num_batch, dim, num_label), labels_shape(num_batch, dim)
 
+        loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))

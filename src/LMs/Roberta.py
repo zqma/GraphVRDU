@@ -1,9 +1,78 @@
 # -*- coding: utf-8 -*-
-
 import torch.nn as nn
-from models.base_model import BaseModel
 
 from transformers import RobertaModel, RobertaConfig
+from transformers import RobertaForTokenClassification
+
+import torch
+from transformers.utils import ModelOutput
+from torch.nn import CrossEntropyLoss
+
+class GraphRobertaTokenClassifier(nn.Module):
+    def __init__(self,opt):
+        super(GraphRobertaTokenClassifier, self).__init__()
+        self.opt = opt
+        self.num_labels = opt.num_labels
+        self.config = RobertaConfig.from_pretrained(opt.roberta_dir)
+        self.roberta = RobertaModel(config=self.config, add_pooling_layer=False)
+        classifier_dropout = (
+            self.config.classifier_dropout if self.config.classifier_dropout is not None else self.config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.classifier = nn.Linear(self.config.hidden_size + opt.hidden_dim_2, self.num_labels)
+
+        # self.model = RobertaForTokenClassification.from_pretrained("deepset/roberta-base-squad2")
+    
+    def forward(self,input_ids, attention_mask, labels, gvect, **args):
+        outputs =  self.roberta(input_ids, attention_mask)
+        hidden_state = outputs[0]   # sequence output
+        fully_sequence = torch.cat((hidden_state,gvect),-1)
+        sequence_output = self.dropout(fully_sequence)
+        logits = self.classifier(sequence_output)   # shape = (num_bach, dim, num_label), label_shape = (num_batch, dim)
+
+        loss = None
+        if labels is not None:
+            loss_fct = CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1,self.num_labels),labels.view(-1))
+        
+        return ModelOutput(
+            loss = loss,
+            logits = logits
+        )
+
+
+class RobertaTokenClassifier(nn.Module):
+    def __init__(self,opt):
+        super(RobertaTokenClassifier, self).__init__()
+        self.opt = opt
+        self.num_labels = opt.num_labels
+        self.config = RobertaConfig.from_pretrained(opt.roberta_dir)
+        self.roberta = RobertaModel(config=self.config, add_pooling_layer=False)
+        classifier_dropout = (
+            self.config.classifier_dropout if self.config.classifier_dropout is not None else self.config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.classifier = nn.Linear(self.config.hidden_size, self.num_labels)
+
+        # self.model = RobertaForTokenClassification.from_pretrained("deepset/roberta-base-squad2")
+    
+    def forward(self,input_ids, attention_mask, labels, **args):
+        outputs =  self.roberta(input_ids, attention_mask)
+        hidden_state = outputs[0]   # sequence output
+        sequence_output = self.dropout(hidden_state)
+        logits = self.classifier(sequence_output)
+
+        loss = None
+        if labels is not None:
+            loss_fct = CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1,self.num_labels),labels.view(-1))
+        
+        return ModelOutput(
+            loss = loss,
+            logits = logits
+        )
+
+
 
 class RobertaClassifier(nn.Module):
     def __init__(self, opt, freeze_bert=False):

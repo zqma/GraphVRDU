@@ -42,7 +42,8 @@ class LayoutLMTokenclassifier(nn.Module):
                 param.requires_grad = False
         
 
-    def forward(self,input_ids, bbox, attention_mask, pixel_values, labels):
+    def forward(self,input_ids, bbox, attention_mask, pixel_values, labels, **args):
         outputs = self.layoutlm(input_ids = input_ids, bbox = bbox, attention_mask = attention_mask, pixel_values = pixel_values, labels = labels)
+        # outputs = self.layoutlm(input_ids = input_ids, bbox = None, attention_mask = attention_mask, pixel_values = None, labels = labels)
         return outputs
 

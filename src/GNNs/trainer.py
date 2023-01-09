@@ -17,7 +17,7 @@ def joint_loss(opt,outputs,labels,t_lambda=0.5):
 def get_criterion(opt):
     if opt.task_type in ['node-classify', 'direct-classify','token-classifier']:
         if opt.task_type == 'node-classify':
-            opt.output_dim = 4
+            opt.output_dim = opt.num_labels
         elif opt.task_type== 'direct-classify': 
             opt.output_dim = 8
         elif opt.task_type=='token-classifier':
@@ -70,7 +70,7 @@ def train(opt, model, mydata):
     optimizer = torch.optim.Adam(model.parameters(),lr=opt.lr, weight_decay=5e-4)
 
     opt.dir_path = create_save_dir(opt)    # prepare dir for saving best models
-    best_loss = 999.9
+    best_loss = 99999.9
     for epoch in range(opt.epochs):
         # train mode
         model.train()

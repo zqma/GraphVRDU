@@ -8,7 +8,7 @@ import ast
 import numpy as np
 import torch
 
-class FUNSD:
+class CORD:
     def __init__(self,opt) -> None:    
         self.opt = opt
         '''
@@ -22,7 +22,7 @@ class FUNSD:
         })
         '''
         self.image_col_name = "image"
-        self.text_col_name = "tokens"
+        self.text_col_name = "words"
         self.boxes_col_name = "bboxes"
         self.label_col_name = "ner_tags"
         self.seg_col_name = 'seg_ids'
@@ -32,7 +32,8 @@ class FUNSD:
         print('--dataset:--',self.dataset)
 
          # read vectors 
-        self.train_graph, self.test_graph = self._load_graph_vects('train'),self._load_graph_vects('test')
+        if bool(opt.load_graph_vect):
+            self.train_graph, self.test_graph = self._load_graph_vects('train'),self._load_graph_vects('test')
 
 
         opt.id2label, opt.label2id, opt.label_list = self._get_label_map(self.dataset)
@@ -82,16 +83,17 @@ class FUNSD:
         encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
                             truncation=True, padding="max_length") # must put return tensor
         # custom features
-        gvects = []
-        batch_doc_ids = doc['id']
-        batch_seg_ids = doc['seg_ids']
-        for doc_id, seg_ids in zip(batch_doc_ids,batch_seg_ids):
-            gvect = self._get_graph_vects([str(doc_id)+'_'+str(seg_id) for seg_id in seg_ids],split)
-            gvects.append(gvect)
-        encoding['gvect'] = gvects
-        # print(encoding['gvect'])
-        # for k in encoding.items():
-        #     encoding[k]=encoding[k][0]
+        if bool(self.opt.load_graph_vect):
+            gvects = []
+            batch_doc_ids = doc['id']
+            batch_seg_ids = doc['seg_ids']
+            for doc_id, seg_ids in zip(batch_doc_ids,batch_seg_ids):
+                gvect = self._get_graph_vects([str(doc_id)+'_'+str(seg_id) for seg_id in seg_ids],split)
+                gvects.append(gvect)
+            encoding['gvect'] = gvects
+            # print(encoding['gvect'])
+            # for k in encoding.items():
+            #     encoding[k]=encoding[k][0]
         return encoding
 
     def get_data(self,split='train',shuffle=True):
@@ -160,15 +162,33 @@ class FUNSD:
         bbox = [[x0, y0, x1, y1] for _ in range(len(bboxs))]
         return bbox
 
+    def _quad_to_box(self, quad):
+    # test 87 is wrongly annotated
+        box = (
+            max(0, quad["x1"]),
+            max(0, quad["y1"]),
+            quad["x3"],
+            quad["y3"]
+        )
+        if box[3] < box[1]:
+            bbox = list(box)
+            tmp = bbox[3]
+            bbox[3] = bbox[1]
+            bbox[1] = tmp
+            box = tuple(bbox)
+        if box[2] < box[0]:
+            bbox = list(box)
+            tmp = bbox[2]
+            bbox[2] = bbox[0]
+            bbox[0] = tmp
+            box = tuple(bbox)
+        return box
 
-    # one doc per img (not multiple pages)
     def load_samples(self, base_dir):
-        # logger.info("⏳ Generating examples from = %s", filepath)
-        ann_dir = os.path.join(base_dir, "adjusted_annotations")
-        img_dir = os.path.join(base_dir, "images")
+        ann_dir = os.path.join(base_dir, "json")
+        img_dir = os.path.join(base_dir, "image")
         for doc_idx, file in enumerate(sorted(os.listdir(ann_dir))):
-            # print('---doc id:---',doc_idx)
-            tokens = []
+            words = []
             bboxes = []
             ner_tags = []
             seg_ids = []
@@ -180,41 +200,44 @@ class FUNSD:
             image_path = image_path.replace("json", "png")
             image, size = self._load_image(image_path)
             seg_id = 0
-            for item in data["form"]:
+            for item in data["valid_line"]:
                 cur_line_bboxes = []
-                words, label = item["words"], item["label"]
-                text = item['text']
-                if text.strip()=='': continue
-                words = [w for w in words if w["text"].strip() != ""]
-                if len(words) == 0:
+                line_words, label = item["words"], item["category"]
+                line_words = [w for w in line_words if w["text"].strip() != ""]
+                if len(line_words) == 0:
                     continue
                 if label == "other":
-                    for w in words:
-                        tokens.append(w["text"])
+                    for w in line_words:
+                        words.append(w["text"])
                         seg_ids.append(seg_id)
                         ner_tags.append("O")
-                        cur_line_bboxes.append(self._normalize_bbox(w["box"], size))
+                        cur_line_bboxes.append(self._normalize_bbox(self._quad_to_box(w["quad"]), size))
                 else:
-                    tokens.append(words[0]["text"])
+                    words.append(line_words[0]["text"])
                     seg_ids.append(seg_id)
                     ner_tags.append("B-" + label.upper())
-                    cur_line_bboxes.append(self._normalize_bbox(words[0]["box"], size))
-                    for w in words[1:]:
-                        tokens.append(w["text"])
+                    cur_line_bboxes.append(self._normalize_bbox(self._quad_to_box(line_words[0]["quad"]), size))
+                    for w in line_words[1:]:
+                        words.append(w["text"])
                         seg_ids.append(seg_id)
                         ner_tags.append("I-" + label.upper())
-                        cur_line_bboxes.append(self._normalize_bbox(w["box"], size))
+                        cur_line_bboxes.append(self._normalize_bbox(self._quad_to_box(w["quad"]), size))
+                # by default: --segment_level_layout 1
+                # if do not want to use segment_level_layout, comment the following line
                 cur_line_bboxes = self._get_line_bbox(cur_line_bboxes)
                 bboxes.extend(cur_line_bboxes)
-                seg_id +=1
-            yield {"id": doc_idx, "tokens": tokens, "bboxes": bboxes, "ner_tags": ner_tags,
-                        "image": image,
-                        "seg_ids":seg_ids}
+                seg_id += 1
+            # yield guid, {"id": str(guid), "words": words, "bboxes": bboxes, "ner_tags": ner_tags, "image": image}
+            yield {"id": str(doc_idx), "words": words, "bboxes": bboxes, "ner_tags": ner_tags,
+                         "image": image,
+                         "seg_ids":seg_ids
+                    }
+
 
 
     def get_train_test(self):
-        train = Dataset.from_generator(self.load_samples, gen_kwargs={'base_dir':self.opt.funsd_train})
-        test = Dataset.from_generator(self.load_samples, gen_kwargs={'base_dir':self.opt.funsd_test})
+        train = Dataset.from_generator(self.load_samples, gen_kwargs={'base_dir':self.opt.cord_train})
+        test = Dataset.from_generator(self.load_samples, gen_kwargs={'base_dir':self.opt.cord_test})
         return DatasetDict({
             "train" : train , 
             "test" : test 

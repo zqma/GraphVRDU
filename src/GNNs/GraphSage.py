@@ -57,8 +57,6 @@ class GraphSage(torch.nn.Module):
         # return x
         return F.softmax(rep, dim=-1)
 
-
-
     def encode(self, data):
         x, edge_index = data.x, data.edge_index
         x = self.conv1(x, edge_index).relu()

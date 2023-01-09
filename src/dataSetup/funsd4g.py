@@ -76,6 +76,7 @@ class FUNSD:
             return torch.load(data_path+split+'.pt')
         
         nlabel_dict = {'question':0,'answer':1, 'header':2, 'other':3}
+        self.opt.num_labels = len(nlabel_dict)
 
         # all graph level
         graphs, node_labels, edge_labels = [],[],[]
@@ -156,11 +157,14 @@ class FUNSD:
             # else:
             #     raise Exception('pls choose correct edge types')
             # u,v = fully_connected(ids)
-            edge_index, edge_attr = util.KNN(Image.open(img_path).size, boxs, k=10)
+            # edge_index, edge_attr = util.KNN(Image.open(img_path).size, boxs, k=10)
+            edge_index, edge_attr = util.rolling_neibor_matrix(Image.open(img_path).size, boxs)
             u, v = edge_index    # add, [2 * num_edge], [num_edge * 2]
-            y_dist = [round(math.log(dist+1),2) for dist,_ in edge_attr]  # project to [0-7]
-            y_direct = [angle//45 for _,angle in edge_attr]  # transforom into 8 directions
-
+            # y_dist = [round(dist,2) for dist,_ in edge_attr]
+            y_dist = [round(math.log(dist+1),3) for dist,_ in edge_attr]  # project to [0-7]
+            # y_direct = [angle//45 for _,angle in edge_attr]  # transforom into 8 directions
+            y_direct = [direct for _,direct in edge_attr]
+            
             # edge labels (binary or)
             el = []
             for e in zip(u,v):

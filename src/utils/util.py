@@ -18,11 +18,11 @@ def create_folder(folder_path : str) -> None:
 
 def fully_connected(ids):
     u,v = [],[]
-
     for id in ids:
         u.extend([id for i in range(len(ids)) if i!=id])
         v.extend([i for i in range(len(ids)) if i!=id])
     return u,v
+
 
 def polar(rect_src : list, rect_dst : list) -> Tuple[int, int]:
     """Compute distance and angle from src to dst bounding boxes (poolar coordinates considering the src as the center)
@@ -35,8 +35,8 @@ def polar(rect_src : list, rect_dst : list) -> Tuple[int, int]:
     """
     
     # check relative position
-    left = (rect_dst[2] - rect_src[0]) <= 0
-    bottom = (rect_src[3] - rect_dst[1]) <= 0
+    left = (rect_dst[2] - rect_src[0]) <= 0 # left-top point
+    bottom = (rect_src[3] - rect_dst[1]) <= 0   # 
     right = (rect_src[2] - rect_dst[0]) <= 0
     top = (rect_dst[3] - rect_src[1]) <= 0
     
@@ -44,13 +44,14 @@ def polar(rect_src : list, rect_dst : list) -> Tuple[int, int]:
     hp_intersect = (rect_src[1] <= rect_dst[3] and rect_dst[1] <= rect_src[3]) # True if two rects "see" each other horizontally, right or left
     rect_intersect = vp_intersect and hp_intersect 
 
-    center = lambda rect: ((rect[2]+rect[0])/2, (rect[3]+rect[1])/2)
+    # center = lambda rect: ((rect[2]+rect[0])/2, (rect[3]+rect[1])/2)
 
-    # evaluate reciprocal position
-    sc = center(rect_src)
-    ec = center(rect_dst)
-    new_ec = (ec[0] - sc[0], ec[1] - sc[1])
-    angle = int(math.degrees(math.atan2(new_ec[1], new_ec[0])) % 360)
+    # # evaluate reciprocal position
+    # sc = center(rect_src)
+    # ec = center(rect_dst)
+    # new_ec = (ec[0] - sc[0], ec[1] - sc[1])
+    new_ec = (rect_dst[0]-rect_src[0], rect_dst[1]-rect_src[1])
+    angle = int(math.degrees(math.atan2(new_ec[1], new_ec[0])))%360
     
     if rect_intersect:
         return 0, angle
@@ -112,6 +113,48 @@ def to_bin(dist :int, angle : int, b=8) -> torch.Tensor:
         new_angle.append(bin)
 
     return torch.cat([torch.tensor(new_dist, dtype=torch.float32), torch.tensor(new_angle, dtype=torch.float32)], dim=1)
+
+
+
+
+def _fully_connected_matrix(size,bboxs):
+    pair_lookup = {}
+    for i in range(len(bboxs)):
+        for j in range(len(bboxs)):
+            box1, box2 = normalize_bbox(bboxs[i],size),normalize_bbox(bboxs[j],size)  # normalized boxes;
+            dist,angle = polar(box1, box2)
+            direct = angle //45 
+            pair_lookup[(i,j)] = (dist,direct)
+    return pair_lookup
+def _eight_neibs(idx, N,pair_lookup):
+    direct2near = {}    # idx : (dist, direct, index)
+    for neib_idx in range(N):
+        if idx == neib_idx: continue  # skip itself
+        dist,direct = pair_lookup[(idx,neib_idx)]
+        if direct in direct2near.keys():
+            if dist<direct2near[direct][0]:
+                direct2near[direct] = (dist, direct, neib_idx)
+        else:
+            direct2near[direct] = (dist, direct, neib_idx)
+    return direct2near
+
+def rolling_neibor_matrix(size, bboxs):
+    pair_lookup = _fully_connected_matrix(size, bboxs)
+    u,v = [],[]
+    # dists, directs = [],[]
+    edge_index = []
+    edge_attr = []
+    for idx in range(len(bboxs)):
+        direct2near = _eight_neibs(idx, len(bboxs), pair_lookup)
+        for direct, (dist,direct,neib_idx) in direct2near.items():
+            u.append(idx)
+            v.append(neib_idx)
+            # dist.append(dist)
+            # directs.append(direct)
+            edge_attr.append([dist,direct])
+    edge_index = [u,v]
+    return edge_index, edge_attr
+
 
 
 
@@ -281,3 +324,9 @@ def _generate_examples(self, base_dir):
         yield guid, {"id": str(guid), "tokens": tokens, "bboxes": bboxes, "ner_tags": ner_tags,
                         "image": image,
                         "seg_ids":seg_ids}
+
+
+if __name__ == '__main__':
+    edge_index, edge_attr = rolling_neibor_matrix([100,100], [[0,0,1,1],[10,10,10,10]])
+    print(edge_index)
+    print(edge_attr)
