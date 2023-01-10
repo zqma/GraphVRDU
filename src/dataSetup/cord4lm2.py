@@ -31,9 +31,8 @@ class CORD:
         self.dataset = self.get_train_test()
         print('--dataset:--',self.dataset)
 
-         # read vectors 
-        if bool(opt.load_graph_vect):
-            self.train_graph, self.test_graph = self._load_graph_vects('train'),self._load_graph_vects('test')
+         # read vectors
+        self.train_graph, self.test_graph = self._load_graph_vects('train'),self._load_graph_vects('test')
 
 
         opt.id2label, opt.label2id, opt.label_list = self._get_label_map(self.dataset)
@@ -83,17 +82,16 @@ class CORD:
         encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
                             truncation=True, padding="max_length") # must put return tensor
         # custom features
-        if bool(self.opt.load_graph_vect):
-            gvects = []
-            batch_doc_ids = doc['id']
-            batch_seg_ids = doc['seg_ids']
-            for doc_id, seg_ids in zip(batch_doc_ids,batch_seg_ids):
-                gvect = self._get_graph_vects([str(doc_id)+'_'+str(seg_id) for seg_id in seg_ids],split)
-                gvects.append(gvect)
-            encoding['gvect'] = gvects
-            # print(encoding['gvect'])
-            # for k in encoding.items():
-            #     encoding[k]=encoding[k][0]
+        gvects = []
+        batch_doc_ids = doc['id']
+        batch_seg_ids = doc['seg_ids']
+        for doc_id, seg_ids in zip(batch_doc_ids,batch_seg_ids):
+            gvect = self._get_graph_vects([str(doc_id)+'_'+str(seg_id) for seg_id in seg_ids],split)
+            gvects.append(gvect)
+        encoding['gvect'] = gvects
+        # print(encoding['gvect'])
+        # for k in encoding.items():
+        #     encoding[k]=encoding[k][0]
         return encoding
 
     def get_data(self,split='train',shuffle=True):

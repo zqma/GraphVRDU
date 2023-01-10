@@ -207,7 +207,10 @@ class CORD4G:
             features['boxs'].append(boxs)
 
             # generate additional features: edges between nodes
-            edge_index, edge_attr = util.rolling_neibor_matrix(Image.open(img_path).size, boxs)
+            if self.opt.g_neib == '8direct':
+                edge_index, edge_attr = util.rolling_neibor_matrix(Image.open(img_path).size, boxs)
+            elif self.opt.g_neib == 'knn':      
+                edge_index, edge_attr = util.KNN(Image.open(img_path).size, boxs,8)
             u, v = edge_index    # add, [2 * num_edge], [num_edge * 2]
             # y_dist = [round(dist,2) for dist,_ in edge_attr]
             y_dist = [round(math.log(dist+1),3) for dist,_ in edge_attr]  # project to [0-7]
