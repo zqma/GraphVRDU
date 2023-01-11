@@ -71,6 +71,12 @@ def predict_one_batch(opt, model, batch, eval=False):
         labels = batch['labels'].to(opt.device)
         pixel_values = batch['pixel_values'].to(opt.device)
         gvect = batch['gvect'].to(opt.device)
+        # if 'graph_roberta' == opt.network_type:
+        #     bbox = None
+        #     pixel_values = None
+        # if 'roberta' == opt.network_type:
+        #     gvect = None
+
         # for key,val in batch.items():
         #     val = val.to(opt.device)
 

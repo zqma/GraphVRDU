@@ -34,24 +34,24 @@ class DocVQA:
         # return self.prepare_one_doc(self.dataset[split])
         samples = self.dataset[split]   # get split
         trainable_samples = samples.map(
-            self.prepare_one_batch,
-            batched=True, batch_size = opt.batch_size,
+            self._prepare_one_batch,
+            batched=True, 
+            batch_size = self.opt.batch_size,
             remove_columns=samples.column_names,    # remove original features
-            # features = Features({
-            #     'input_ids': Sequence(feature=Value(dtype='int64')),
-            #     'bbox': Array2D(dtype="int64", shape=(512, 4)),
-            #     'attention_mask': Sequence(Value(dtype='int64')),
-            #     'token_type_ids': Sequence(Value(dtype='int64')),
-            #     'image': Array3D(dtype="int64", shape=(3, 224, 224)),
-            #     'start_positions': Value(dtype='int64'),
-            #     'end_positions': Value(dtype='int64'),
-            # })
+            features = Features({
+                'input_ids': Sequence(feature=Value(dtype='int64')),
+                'bbox': Array2D(dtype="int64", shape=(512, 4)),
+                'attention_mask': Sequence(Value(dtype='int64')),
+                'token_type_ids': Sequence(Value(dtype='int64')),
+                'image': Array3D(dtype="int64", shape=(3, 224, 224)),
+                'start_positions': Value(dtype='int64'),
+                'end_positions': Value(dtype='int64'),
+            })
         ).with_format("torch")
         # trainable_samples = trainable_samples.set_format("torch")  # with_format is important
         return trainable_samples
 
-    def prepare_one_batch(opt, examples, max_length=512):
-        examples = self.dataset[split]
+    def _prepare_one_batch(self, examples, max_length=512):
         # take a batch 
         questions = examples['question']
         words = examples['words']

@@ -66,7 +66,7 @@ class GraphSage(torch.nn.Module):
 
     def decode(self, z, edge_label_index):
         y = (z[edge_label_index[0]] * z[edge_label_index[1]])   # element wise product
-        y = y.sum(dim=-1)   # some of the dim parameters;  
+        y = y.sum(dim=-1)   # sum of the dim parameters;  
         return y
 
     def decode_all(self, z):

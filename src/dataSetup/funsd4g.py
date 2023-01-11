@@ -158,12 +158,17 @@ class FUNSD:
             #     raise Exception('pls choose correct edge types')
             # u,v = fully_connected(ids)
             # edge_index, edge_attr = util.KNN(Image.open(img_path).size, boxs, k=10)
-            edge_index, edge_attr = util.rolling_neibor_matrix(Image.open(img_path).size, boxs)
+                        # generate additional features: edges between nodes
+            if self.opt.g_neib == '8direct':
+                edge_index, edge_attr = util.rolling_neibor_matrix(Image.open(img_path).size, boxs)
+                y_direct = [direct for _,direct in edge_attr]
+            elif self.opt.g_neib == 'knn':      
+                edge_index, edge_attr = util.KNN(Image.open(img_path).size, boxs,10)
+                y_direct = [angle//45 for _,angle in edge_attr]
             u, v = edge_index    # add, [2 * num_edge], [num_edge * 2]
             # y_dist = [round(dist,2) for dist,_ in edge_attr]
             y_dist = [round(math.log(dist+1),3) for dist,_ in edge_attr]  # project to [0-7]
             # y_direct = [angle//45 for _,angle in edge_attr]  # transforom into 8 directions
-            y_direct = [direct for _,direct in edge_attr]
             
             # edge labels (binary or)
             el = []

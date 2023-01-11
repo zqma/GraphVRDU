@@ -6,9 +6,10 @@ import os, pickle
 import time
 
 
-def joint_loss(opt,outputs,labels,t_lambda=0.5):
+def joint_loss(opt,outputs,labels):
     # loss = torch.mean((output - y)**2)
     crit1,crit2 = opt.criterion
+    # print('target_range:=====',labels[0].min(), labels[0].max())
     loss = opt.t_lambda*crit1(outputs[0],labels[0]) + (1.0-opt.t_lambda)*crit2(outputs[1],labels[1])
     return loss
 
@@ -23,7 +24,6 @@ def get_criterion(opt):
         elif opt.task_type=='token-classifier':
             opt.output_dim = opt.num_labels
         return torch.nn.CrossEntropyLoss()
-        
     elif opt.task_type == 'link-binary':
         opt.output_dim = 1
         # class_weights=torch.tensor([0.9,0.1],dtype=torch.float)
