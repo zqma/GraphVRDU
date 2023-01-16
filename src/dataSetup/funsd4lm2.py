@@ -1,6 +1,6 @@
 from datasets import load_dataset ,Features, Sequence, Value, Array2D, Array3D
 from datasets.features import ClassLabel
-from transformers import AutoProcessor
+from transformers import AutoProcessor, LayoutLMv3Tokenizer
 from datasets import Dataset,DatasetDict
 import os,json
 from PIL import Image
@@ -34,18 +34,18 @@ class FUNSD:
          # read vectors 
         self.train_graph, self.test_graph = self._load_graph_vects('train'),self._load_graph_vects('test')
 
-
         opt.id2label, opt.label2id, opt.label_list = self._get_label_map(self.dataset)
         opt.num_labels = len(opt.label_list)
         
         # encode label class (target)
         self.dataset['train'] = self.encode_class(self.dataset['train'])
         self.dataset['test'] = self.encode_class(self.dataset['test'])
-
+        
         # prepare for getting trainable data
         # 6 labels: {0: 'O', 1: 'B-HEADER', 2: 'I-HEADER', 3: 'B-QUESTION', 4: 'I-QUESTION', 5: 'B-ANSWER', 6: 'I-ANSWER'}
         self.processor = AutoProcessor.from_pretrained(opt.layoutlm_dir, apply_ocr=False)    # wrap of featureExtract & tokenizer
-        
+        zero_vect = [0]*32
+        self.tokenizer = LayoutLMv3Tokenizer.from_pretrained(opt.layoutlm_dir, cls_token_box = zero_vect,sep_token_box = zero_vect, pad_token_box = zero_vect)
         # process to: 'input_ids', 'attention_mask', 'bbox', 'labels', 'pixel_values']
         self.train_dataset, self.test_dataset = self.get_data('train'), self.get_data('test')
 
@@ -68,31 +68,46 @@ class FUNSD:
             res = [self.train_graph[id] for id in id_list]
         else:
             res = [self.test_graph[id] for id in id_list]
-        zero_vect = [0]*32
-        res = res + [zero_vect for _ in range(max_len-len(res))]
-        return res[:max_len]
+        return res
+        # zero_vect = [0]*32
+        # res = res + [zero_vect for _ in range(max_len-len(res))]
+        # return res[:max_len]
 
     def _prepare_one_doc(self,doc,split='train'):
         # the result in encoding are mostly list (or list of list) of values
-        
-        images = doc[self.image_col_name] ##if you use an image path, this will need to be updated to read the image in
-        words = doc[self.text_col_name]
-        boxes = doc[self.boxes_col_name]
-        word_labels = doc[self.label_col_name]
-        encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
-                            truncation=True, padding="max_length") # must put return tensor
-        # custom features
+         # custom features
         gvects = []
         batch_doc_ids = doc['id']
         batch_seg_ids = doc['seg_ids']
         for doc_id, seg_ids in zip(batch_doc_ids,batch_seg_ids):
             gvect = self._get_graph_vects([str(doc_id)+'_'+str(seg_id) for seg_id in seg_ids],split)
             gvects.append(gvect)
-        encoding['gvect'] = gvects
+        
+
+        images = doc[self.image_col_name] ##if you use an image path, this will need to be updated to read the image in
+        words = doc[self.text_col_name]
+        boxes = doc[self.boxes_col_name]
+        word_labels = doc[self.label_col_name]
+        # encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
+        #                     truncation=True, padding="max_length") # must put return tensor
+        encoded_inputs = self.processor.tokenizer(text=words, boxes = boxes, word_labels = word_labels, truncation=True, padding='max_length')
+        image_features = self.processor.feature_extractor(images=images)
+        images = image_features.pop('pixel_values')
+        encoded_inputs['pixel_values'] = images
+
+        # zero_vect = [0]*32
+        # kwargs={'cls_token_box':zero_vect, 'sep_token_box':zero_vect, 'pad_token_box':zero_vect}
+        assist_encode = self.tokenizer(text=words, boxes = gvects, word_labels = word_labels, truncation=True, padding='max_length')
+        encoded_inputs['gvect'] = assist_encode['bbox']
+
+        # for k,v in encoding.items():
+        #     print(k,'===:===',v[0])
+        # print(encoding[0])
         # print(encoding['gvect'])
         # for k in encoding.items():
         #     encoding[k]=encoding[k][0]
-        return encoding
+
+        return encoded_inputs
 
     def get_data(self,split='train',shuffle=True):
         # return self.prepare_one_doc(self.dataset[split])
@@ -231,6 +246,17 @@ class FUNSD:
         # type to ClassLabel object
         # dataset = dataset.cast_column(self.label_col_name, dst_feat)
         return dataset
+
+
+    # def tokenizer(words,boxes, word_labels):
+    #     tokens, token_boxes, labels = [],[],[]
+    #     for word, box, label in zip(words,boxes,word_labels):
+    #         if len(word)<1: continue
+    #         word_tokens = self.toeknize(word)
+    #         token_boxes.extend([box]*len(word_tokens))
+    #         # only label first subword
+    #         labels.extend([label] + [self.pad_token_label] * (len(word_tokens)-1))
+
 
 
 if __name__ == '__main__':

@@ -39,6 +39,10 @@ def train(opt, model, mydata):
         
         # eval mode
         res_dict = test_eval(opt,model,loader_test)
+        if opt.task_type=='docvqa':
+            print(res_dict['val_loss'])
+            continue
+        # if task_type == token
         if res_dict['f1']>best_f1:
             save_model(opt, model,res_dict)
             best_f1 = res_dict['f1']
@@ -55,7 +59,7 @@ def test_eval(opt,model,loader_test):
 
     # res_dict = evaluate(preds,tgts)
     if opt.task_type == 'docvqa':
-        return
+        return {'val_loss':val_loss}
     
     res_dict = compute_metrics(opt, [preds,tgts])
     print(res_dict)
@@ -95,8 +99,8 @@ def predict_one_batch(opt, model, batch, eval=False):
         attention_mask = batch['attention_mask'].to(opt.device)
         token_type_ids = batch['token_type_ids'].to(opt.device)
         bbox = batch['bbox'].to(opt.device)
-        start_positions = batch['start_positions'].to(opt.device)
-        end_positions = batch['end_positions'].to(opt.device)
+        start_positions = batch['ans_start_positions'].to(opt.device)
+        end_positions = batch['ans_end_positions'].to(opt.device)
         image = batch['image'].to(opt.device)
 
         if eval:

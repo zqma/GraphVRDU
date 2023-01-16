@@ -1,6 +1,6 @@
 from datasets import load_dataset ,Features, Sequence, Value, Array2D, Array3D
 from datasets.features import ClassLabel
-from transformers import AutoProcessor
+from transformers import AutoProcessor,LayoutLMv3Tokenizer
 from datasets import Dataset,DatasetDict
 import os,json
 from PIL import Image
@@ -45,7 +45,10 @@ class CORD:
         # prepare for getting trainable data
         # 6 labels: {0: 'O', 1: 'B-HEADER', 2: 'I-HEADER', 3: 'B-QUESTION', 4: 'I-QUESTION', 5: 'B-ANSWER', 6: 'I-ANSWER'}
         self.processor = AutoProcessor.from_pretrained(opt.layoutlm_dir, apply_ocr=False)    # wrap of featureExtract & tokenizer
-        
+        # customized tokenizer, for additional vector/features
+        zero_vect = [0]*32
+        self.tokenizer = LayoutLMv3Tokenizer.from_pretrained(opt.layoutlm_dir, cls_token_box = zero_vect,sep_token_box = zero_vect, pad_token_box = zero_vect)
+
         # process to: 'input_ids', 'attention_mask', 'bbox', 'labels', 'pixel_values']
         self.train_dataset, self.test_dataset = self.get_data('train'), self.get_data('test')
 
@@ -68,38 +71,44 @@ class CORD:
             res = [self.train_graph[id] for id in id_list]
         else:
             res = [self.test_graph[id] for id in id_list]
-        zero_vect = [0]*32
-        res = res + [zero_vect for _ in range(max_len-len(res))]
-        return res[:max_len]
+        return res
+        # zero_vect = [0]*32
+        # res = res + [zero_vect for _ in range(max_len-len(res))]
+        # return res[:max_len]
 
-    def _prepare_one_doc(self,doc,split='train'):
+    def _prepare_one_batch(self,docs,split='train'):
         # the result in encoding are mostly list (or list of list) of values
-        
-        images = doc[self.image_col_name] ##if you use an image path, this will need to be updated to read the image in
-        words = doc[self.text_col_name]
-        boxes = doc[self.boxes_col_name]
-        word_labels = doc[self.label_col_name]
-        encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
-                            truncation=True, padding="max_length") # must put return tensor
         # custom features
         gvects = []
-        batch_doc_ids = doc['id']
-        batch_seg_ids = doc['seg_ids']
+        batch_doc_ids = docs['id']
+        batch_seg_ids = docs['seg_ids']
         for doc_id, seg_ids in zip(batch_doc_ids,batch_seg_ids):
             gvect = self._get_graph_vects([str(doc_id)+'_'+str(seg_id) for seg_id in seg_ids],split)
             gvects.append(gvect)
-        encoding['gvect'] = gvects
-        # print(encoding['gvect'])
-        # for k in encoding.items():
-        #     encoding[k]=encoding[k][0]
-        return encoding
+
+        images = docs[self.image_col_name] ##if you use an image path, this will need to be updated to read the image in
+        words = docs[self.text_col_name]
+        boxes = docs[self.boxes_col_name]
+        word_labels = docs[self.label_col_name]
+        # encoding = self.processor(images, words, boxes=boxes, word_labels=word_labels,
+                            # truncation=True, padding="max_length") # must put return tensor
+        
+        encoded_inputs = self.processor.tokenizer(text=words, boxes = boxes, word_labels = word_labels, truncation=True, padding='max_length')
+        image_features = self.processor.feature_extractor(images=images)
+        images = image_features.pop('pixel_values')
+        encoded_inputs['pixel_values'] = images
+
+        assist_encode = self.tokenizer(text=words, boxes = gvects, word_labels = word_labels, truncation=True, padding='max_length')
+        encoded_inputs['gvect'] = assist_encode['bbox']
+
+        return encoded_inputs
 
     def get_data(self,split='train',shuffle=True):
         # return self.prepare_one_doc(self.dataset[split])
         samples = self.dataset[split]   # get split
         samples.cleanup_cache_files()
         trainable_samples = samples.map(
-            self._prepare_one_doc,  # process new features
+            self._prepare_one_batch,  # process new features
             fn_kwargs={'split':split},
 
             batched=True,   # default is always true
